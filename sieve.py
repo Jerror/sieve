@@ -1,4 +1,5 @@
 import re
+import copy
 import itertools as it
 import operator as op
 
@@ -34,23 +35,24 @@ def root(filters):
     return sieve_stack(True, filters)
 
 
-def branch(d, k, filters):
-    d[k] = sieve_stack(d[k], filters)
-    return d[k]
+def branch(filters, dct, *keys):
+    d = copy.deepcopy(dct)
+    d2 = d
+    for k in iter(keys[:-1]):
+        d2 = d2[k]
+
+    d2[keys[-1]] = sieve_stack(d2[keys[-1]], filters)
+    return d
 
 
+def extend(filters, dct, *keys):
+    d = copy.deepcopy(dct)
+    d2 = d
+    for k in iter(keys):
+        d2 = d2[k]
 
-# def deepset(v, dct, *keys):
-#     d = dct
-#     for k in iter(keys[:-1]):
-#         d = d[k]
-#     d[keys[-1]] = v
-#     return dct
-
-
-def extend(d, filters):
-    state = d.pop('rem')
-    d.update(sieve_stack(state, filters))
+    state = d2.pop('rem')
+    d2.update(sieve_stack(state, filters))
     return d
 
 
@@ -75,19 +77,19 @@ ma = root((
     ('odd', x % 2 == 1)
          ))
 
-branch(ma, 'odd', (
+ma2 = branch((
        ('a', x<2),
        ('b', x<6)
-))
+), ma, 'odd')
 
-branch(ma['odd'], 'b', (
+ma3 = branch((
        (0, x<4),
-))
+), ma2, 'odd', 'b')
 
-extend(ma, (
+ma4 = extend((
     ('x', x < 3),
-    ('y', x < 6)))
+    ('y', x < 6)), ma3)
 
-for k,m in traverse(ma):
+for k,m in traverse(ma4):
     print(k)
     print(x[m])
