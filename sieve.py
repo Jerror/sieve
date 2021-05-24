@@ -1,5 +1,4 @@
 import re
-from collections import OrderedDict
 import itertools as it
 import operator as op
 
@@ -23,7 +22,7 @@ def sieve_stack(state, filters):
         state = state.copy()
     s = gen_sieve(state)
     next(s)
-    res = OrderedDict([(k, s.send(m)) for k, m in filters])
+    res = {k: s.send(m) for k, m in filters}
     try:
         res['rem'] = s.send(None)
     except StopIteration:
@@ -40,6 +39,15 @@ def branch(d, k, filters):
     return d[k]
 
 
+
+# def deepset(v, dct, *keys):
+#     d = dct
+#     for k in iter(keys[:-1]):
+#         d = d[k]
+#     d[keys[-1]] = v
+#     return dct
+
+
 def extend(d, filters):
     state = d.pop('rem')
     d.update(sieve_stack(state, filters))
@@ -51,7 +59,7 @@ def traverse(d, from_key=None):
     if from_key is not None:
         items = it.dropwhile(lambda kv: kv[0] != from_key, items)
     for k, m in items:
-        if isinstance(m, OrderedDict):
+        if isinstance(m, dict):
             yield from traverse(m)
         else:
             yield k, m
@@ -75,6 +83,10 @@ branch(ma, 'odd', (
 branch(ma['odd'], 'b', (
        (0, x<4),
 ))
+
+extend(ma, (
+    ('x', x < 3),
+    ('y', x < 6)))
 
 for k,m in traverse(ma):
     print(k)
