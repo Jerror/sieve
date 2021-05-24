@@ -31,29 +31,29 @@ def sieve_stack(state, filters):
     return res
 
 
-def root(filters):
-    return sieve_stack(True, filters)
+class SieveTree:
 
+    def __init__(self, filters):
+        self.data = sieve_stack(True, filters)
 
-def branch(filters, dct, *keys):
-    d = copy.deepcopy(dct)
-    d2 = d
-    for k in iter(keys[:-1]):
-        d2 = d2[k]
+    def branch(self, filters, *keys):
+        new_tree = copy.deepcopy(self)
+        d = new_tree.data
+        for k in iter(keys[:-1]):
+            d = d[k]
 
-    d2[keys[-1]] = sieve_stack(d2[keys[-1]], filters)
-    return d
+        d[keys[-1]] = sieve_stack(d[keys[-1]], filters)
+        return new_tree
 
+    def extend(self, filters, *keys):
+        new_tree = copy.deepcopy(self)
+        d = new_tree.data
+        for k in iter(keys):
+            d = d[k]
 
-def extend(filters, dct, *keys):
-    d = copy.deepcopy(dct)
-    d2 = d
-    for k in iter(keys):
-        d2 = d2[k]
-
-    state = d2.pop('rem')
-    d2.update(sieve_stack(state, filters))
-    return d
+        state = d.pop('rem')
+        d.update(sieve_stack(state, filters))
+        return new_tree
 
 
 def traverse(d, from_key=None):
@@ -70,26 +70,28 @@ def traverse(d, from_key=None):
 
 x = pd.Series(range(10))
 
-ma = root((
+st = SieveTree((
     (99, x>=9),
     (0, x<1),
     (1, x<2),
     ('odd', x % 2 == 1)
          ))
 
-ma2 = branch((
+st2 = st.branch((
        ('a', x<2),
        ('b', x<6)
-), ma, 'odd')
+), 'odd')
 
-ma3 = branch((
+st3 = st2.branch((
        (0, x<4),
-), ma2, 'odd', 'b')
+), 'odd', 'b')
 
-ma4 = extend((
+st4 = st3.extend((
     ('x', x < 3),
-    ('y', x < 6)), ma3)
+    ('y', x < 6)))
 
-for k,m in traverse(ma4):
-    print(k)
-    print(x[m])
+for t in [st, st2, st3, st4]:
+    for k,m in traverse(t.data):
+        print(k)
+        print(x[m])
+    print()
