@@ -6,6 +6,8 @@ import operator as op
 import numpy as np
 import pandas as pd
 
+from ete3 import Tree
+
 
 def gen_sieve(state):
     captured = None
@@ -57,6 +59,19 @@ def traverse(d, from_key=None):
             yield k, m
 
 
+def dict2tree(d, prefix=''):
+    root = Tree()
+    n = root
+    for k, v in d.items():
+        n = n.add_child(name=k)
+        if isinstance(v, dict):
+            n.add_child(dict2tree(v, prefix=prefix+str(k)+' '))
+        else:
+            n.add_child(name=prefix+str(k))
+    n.delete()
+    return root
+
+
 class SieveTree:
 
     def __init__(self, filters):
@@ -93,6 +108,8 @@ class SieveTree:
 
         return traverse(d, from_key)
 
+    def get_tree(self):
+        return dict2tree(self.data)
 
 
 x = pd.Series(range(10))
@@ -122,29 +139,4 @@ for k,m in st4.traverse():
     print(x[m])
 print()
 
-
-# st = SieveTree((
-#     (99, x>=9),
-#     (0, x<1),
-#     (1, x<2),
-#     ('odd', x % 2 == 1)
-#          ))
-
-# st.branch((
-#        ('a', x<2),
-#        ('b', x<6)
-# ), 'odd', inplace=True)
-
-# st.branch((
-#        (0, x<4),
-# ), 'odd', 'b', inplace=True)
-
-# st.extend((
-#     ('x', x < 3),
-#     ('y', x < 6)), inplace=True)
-
-
-# for k,m in st.traverse():
-#     print(k)
-#     print(x[m])
-# print()
+print(st4.get_tree().get_ascii(show_internal=True))
