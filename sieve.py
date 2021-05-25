@@ -31,29 +31,19 @@ def sieve_stack(state, filters):
     return res
 
 
-class SieveTree:
+def root(filters):
+    return sieve_stack(True, filters)
 
-    def __init__(self, filters):
-        self.data = sieve_stack(True, filters)
 
-    def branch(self, filters, *keys):
-        new_tree = copy.deepcopy(self)
-        d = new_tree.data
-        for k in iter(keys[:-1]):
-            d = d[k]
+def branch(d, k, filters):
+    d[k] = sieve_stack(d[k], filters)
+    return d[k]
 
-        d[keys[-1]] = sieve_stack(d[keys[-1]], filters)
-        return new_tree
 
-    def extend(self, filters, *keys):
-        new_tree = copy.deepcopy(self)
-        d = new_tree.data
-        for k in iter(keys):
-            d = d[k]
-
-        state = d.pop('rem')
-        d.update(sieve_stack(state, filters))
-        return new_tree
+def extend(d, filters):
+    state = d.pop('rem')
+    d.update(sieve_stack(state, filters))
+    return d
 
 
 def traverse(d, from_key=None):
@@ -65,6 +55,37 @@ def traverse(d, from_key=None):
             yield from traverse(m)
         else:
             yield k, m
+
+
+class SieveTree:
+
+    def __init__(self, filters):
+        self.data = root(filters)
+
+    def branch(self, filters, *keys):
+        new_tree = copy.deepcopy(self)
+        d = new_tree.data
+        for k in iter(keys[:-1]):
+            d = d[k]
+
+        branch(d, keys[-1], filters)
+        return new_tree
+
+    def extend(self, filters, *keys):
+        new_tree = copy.deepcopy(self)
+        d = new_tree.data
+        for k in iter(keys):
+            d = d[k]
+
+        extend(d, filters)
+        return new_tree
+
+    def traverse(self, *keys, from_key=None):
+        d = self.data
+        for k in iter(keys):
+            d = d[k]
+
+        return traverse(d, from_key)
 
 
 
@@ -90,8 +111,15 @@ st4 = st3.extend((
     ('x', x < 3),
     ('y', x < 6)))
 
-for t in [st, st2, st3, st4]:
-    for k,m in traverse(t.data):
-        print(k)
-        print(x[m])
-    print()
+# for t in [st, st2, st3, st4]:
+#     for k,m in t.traverse():
+#         print(k)
+#         print(x[m])
+#     print()
+
+for k,m in st4.traverse('odd', 'b', from_key='rem'):
+    print(k)
+    print(x[m])
+print()
+
+
