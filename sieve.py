@@ -62,23 +62,29 @@ class SieveTree:
     def __init__(self, filters):
         self.data = root(filters)
 
-    def branch(self, filters, *keys):
-        new_tree = copy.deepcopy(self)
+    def branch(self, filters, *keys, inplace=False):
+        if inplace:
+            new_tree = self
+        else:
+            new_tree = copy.deepcopy(self)
         d = new_tree.data
         for k in iter(keys[:-1]):
             d = d[k]
 
         branch(d, keys[-1], filters)
-        return new_tree
+        return None if inplace else new_tree
 
-    def extend(self, filters, *keys):
-        new_tree = copy.deepcopy(self)
+    def extend(self, filters, *keys, inplace=False):
+        if inplace:
+            new_tree = self
+        else:
+            new_tree = copy.deepcopy(self)
         d = new_tree.data
         for k in iter(keys):
             d = d[k]
 
         extend(d, filters)
-        return new_tree
+        return None if inplace else new_tree
 
     def traverse(self, *keys, from_key=None):
         d = self.data
@@ -111,15 +117,34 @@ st4 = st3.extend((
     ('x', x < 3),
     ('y', x < 6)))
 
-# for t in [st, st2, st3, st4]:
-#     for k,m in t.traverse():
-#         print(k)
-#         print(x[m])
-#     print()
-
-for k,m in st4.traverse('odd', 'b', from_key='rem'):
+for k,m in st4.traverse():
     print(k)
     print(x[m])
 print()
 
 
+# st = SieveTree((
+#     (99, x>=9),
+#     (0, x<1),
+#     (1, x<2),
+#     ('odd', x % 2 == 1)
+#          ))
+
+# st.branch((
+#        ('a', x<2),
+#        ('b', x<6)
+# ), 'odd', inplace=True)
+
+# st.branch((
+#        (0, x<4),
+# ), 'odd', 'b', inplace=True)
+
+# st.extend((
+#     ('x', x < 3),
+#     ('y', x < 6)), inplace=True)
+
+
+# for k,m in st.traverse():
+#     print(k)
+#     print(x[m])
+# print()
