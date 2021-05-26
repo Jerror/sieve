@@ -65,9 +65,9 @@ def dict2tree(d, prefix=''):
     for k, v in d.items():
         n = n.add_child(name=k)
         if isinstance(v, dict):
-            n.add_child(dict2tree(v, prefix=prefix+str(k)+' '))
+            n.add_child(dict2tree(v, prefix=prefix + str(k) + ' '))
         else:
-            n.add_child(name=prefix+str(k))
+            n.add_child(name=prefix + str(k))
     n.delete()
     return root
 
@@ -115,26 +115,25 @@ class SieveTree:
 x = pd.Series(range(10))
 
 st = SieveTree((
-    (99, x>=9),
-    (0, x<1),
-    (1, x<2),
-    ('odd', x % 2 == 1)
-         ))
+    (99, x >= 9),
+    (0, x < 1),
+    (1, x < 2),
+    ('odd', x % 2 == 1),
+))
 
 st2 = st.branch((
-       ('a', x<2),
-       ('b', x<6)
+    ('a', x < 2),
+    ('b', x < 6),
 ), 'odd')
 
-st3 = st2.branch((
-       (0, x<4),
-), 'odd', 'b')
+st3 = st2.branch(((0, x < 4), ), 'odd', 'b')
 
 st4 = st3.extend((
     ('x', x < 3),
-    ('y', x < 6)))
+    ('y', x < 6),
+))
 
-for k,m in st4.traverse():
+for k, m in st4.traverse():
     print(k)
     print(x[m])
 print()

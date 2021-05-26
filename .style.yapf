@@ -1,0 +1,8 @@
+[style]
+blank_line_before_nested_class_or_def=True
+coalesce_brackets=True
+force_multiline_dict=False
+indent_dictionary_value=False
+split_complex_comprehension=True
+split_arguments_when_comma_terminated=True
+split_all_comma_separated_values=False
