@@ -48,13 +48,13 @@ def extend(d, filters):
     return d
 
 
-def traverse(d, from_key=None):
+def recurse_items(d, from_key=None):
     items = d.items()
     if from_key is not None:
         items = it.dropwhile(lambda kv: kv[0] != from_key, items)
     for k, m in items:
         if isinstance(m, dict):
-            yield from traverse(m)
+            yield from recurse_items(m)
         else:
             yield k, m
 
@@ -101,12 +101,12 @@ class SieveTree:
         extend(d, filters)
         return None if inplace else new_tree
 
-    def traverse(self, *keys, from_key=None):
+    def traverse_leaves(self, *keys, from_key=None):
         d = self.data
         for k in iter(keys):
             d = d[k]
 
-        return traverse(d, from_key)
+        return recurse_items(d, from_key)
 
     def get_tree(self):
         return dict2tree(self.data)
@@ -133,7 +133,7 @@ st4 = st3.extend((
     ('y', x < 6),
 ))
 
-for k, m in st4.traverse():
+for k, m in st4.traverse_leaves():
     print(k)
     print(x[m])
 print()
