@@ -55,15 +55,18 @@ def recurse_items(d, *parents, from_key=None):
             yield (k, m) if len(parents) == 0 else ((*parents, k), m)
 
 
-def dict2tree(d, prefix=''):
+def dict2tree(d, *parents):
     root = Tree()
     n = root
     for k, v in d.items():
         n = n.add_child(name=k)
         if isinstance(v, dict):
-            n.add_child(dict2tree(v, prefix=prefix + str(k) + ' '))
+            n.add_child(dict2tree(v, *parents, k))
+        elif isinstance(v, pd.Series):
+            label = str((*parents, k)) if v.any() else '()'
+            n.add_child(name=label)
         else:
-            n.add_child(name=prefix + str(k))
+            n.add_child(name=str(v))
     n.delete()
     return root
 
@@ -130,6 +133,7 @@ st4 = st3.extend((
     ('y', x < 6),
 ))
 
+# st4.data['rem'] &= False
 for k, m in st4.traverse_leaves():
     print(k)
     print(x[m])
