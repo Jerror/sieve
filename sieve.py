@@ -22,8 +22,9 @@ def sieve_stack(state, filters):
         state = state.copy()
     s = gen_sieve(state)
     next(s)
-    return filter(lambda kv: isinstance(kv[1], pd.Series) and kv[1].any(),
-                  ((k, s.send(m)) for k, m in (*filters, (None, None))))
+    keys, masks = zip(*(*filters, (None, None)))
+    return filter(lambda km: isinstance(km[1], pd.Series) and km[1].any(),
+                  zip(keys, map(lambda m: s.send(m), masks)))
 
 
 def root(filters):
@@ -131,6 +132,7 @@ if __name__ == '__main__':
         ('y', x < 6),
     ))
 
+    # st4.extend([(None, None), (None, None)])
     # st4.data[None] &= False
     for k, m in st4.traverse_leaves():
         print(k)
