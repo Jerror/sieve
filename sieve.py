@@ -1,9 +1,6 @@
-import re
 import copy
 import itertools as it
-import operator as op
 
-import numpy as np
 import pandas as pd
 
 from ete3 import Tree
@@ -112,31 +109,32 @@ class SieveTree:
         return dict2tree(self.data)
 
 
-x = pd.Series(range(10))
+if __name__ == '__main__':
+    x = pd.Series(range(10))
 
-st = SieveTree((
-    (99, x >= 9),
-    (0, x < 1),
-    (1, x < 2),
-    ('odd', x % 2 == 1),
-))
+    st = SieveTree((
+        (99, x >= 9),
+        (0, x < 1),
+        (1, x < 2),
+        ('odd', x % 2 == 1),
+    ))
 
-st2 = st.branch((
-    ('a', x < 2),
-    ('b', x < 6),
-), 'odd')
+    st2 = st.branch((
+        ('a', x < 2),
+        ('b', x < 6),
+    ), 'odd')
 
-st3 = st2.branch(((0, x < 4), ), 'odd', 'b')
+    st3 = st2.branch(((0, x < 4), ), 'odd', 'b')
 
-st4 = st3.extend((
-    ('x', x < 3),
-    ('y', x < 6),
-))
+    st4 = st3.extend((
+        ('x', x < 3),
+        ('y', x < 6),
+    ))
 
-# st4.data[None] &= False
-for k, m in st4.traverse_leaves('odd', 'b'):
-    print(k)
-    print(x[m])
-print()
+    # st4.data[None] &= False
+    for k, m in st4.traverse_leaves():
+        print(k)
+        print(x[m])
+    print()
 
-print(st4.get_tree().get_ascii(show_internal=True))
+    print(st4.get_tree().get_ascii(show_internal=True))
