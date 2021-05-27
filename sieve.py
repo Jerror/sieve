@@ -44,15 +44,15 @@ def extend(d, filters):
     return d
 
 
-def recurse_items(d, from_key=None):
+def recurse_items(d, *parents, from_key=None):
     items = d.items()
     if from_key is not None:
         items = it.dropwhile(lambda kv: kv[0] != from_key, items)
     for k, m in items:
         if isinstance(m, dict):
-            yield from recurse_items(m)
+            yield from recurse_items(m, *parents, k)
         else:
-            yield k, m
+            yield (k, m) if len(parents) == 0 else ((*parents, k), m)
 
 
 def dict2tree(d, prefix=''):
@@ -102,7 +102,8 @@ class SieveTree:
         for k in iter(keys):
             d = d[k]
 
-        return recurse_items(d, from_key)
+        return filter(lambda kv: isinstance(kv[1], pd.Series) and kv[1].any(),
+                      recurse_items(d, *keys, from_key=from_key))
 
     def get_tree(self):
         return dict2tree(self.data)
