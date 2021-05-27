@@ -26,7 +26,7 @@ def sieve_stack(state, filters):
     s = gen_sieve(state)
     next(s)
     return filter(lambda kv: isinstance(kv[1], pd.Series) and kv[1].any(),
-                  ((k, s.send(m)) for k, m in (*filters, ('rem', None))))
+                  ((k, s.send(m)) for k, m in (*filters, (None, None))))
 
 
 def root(filters):
@@ -39,7 +39,7 @@ def branch(d, k, filters):
 
 
 def extend(d, filters):
-    state = d.pop('rem')
+    state = d.pop(None)
     d.update(sieve_stack(state, filters))
     return d
 
@@ -133,7 +133,7 @@ st4 = st3.extend((
     ('y', x < 6),
 ))
 
-# st4.data['rem'] &= False
+# st4.data[None] &= False
 for k, m in st4.traverse_leaves():
     print(k)
     print(x[m])
