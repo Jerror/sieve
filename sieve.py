@@ -25,20 +25,16 @@ def sieve_stack(state, filters):
         state = state.copy()
     s = gen_sieve(state)
     next(s)
-    res = {k: s.send(m) for k, m in filters}
-    try:
-        res['rem'] = s.send(None)
-    except StopIteration:
-        pass
-    return res
+    return filter(lambda kv: isinstance(kv[1], pd.Series) and kv[1].any(),
+                  ((k, s.send(m)) for k, m in (*filters, ('rem', None))))
 
 
 def root(filters):
-    return sieve_stack(True, filters)
+    return dict(sieve_stack(True, filters))
 
 
 def branch(d, k, filters):
-    d[k] = sieve_stack(d[k], filters)
+    d[k] = dict(sieve_stack(d[k], filters))
     return d[k]
 
 
