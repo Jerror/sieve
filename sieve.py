@@ -109,6 +109,10 @@ class SieveTree:
     def get_tree(self):
         return dict2tree(self.data)
 
+    def __repr__(self):
+        return self.get_tree().get_ascii(show_internal=True)
+
+
 
 if __name__ == '__main__':
     x = pd.Series(range(10))
@@ -139,4 +143,4 @@ if __name__ == '__main__':
         print(x[m])
     print()
 
-    print(st4.get_tree().get_ascii(show_internal=True))
+    print(st4)
