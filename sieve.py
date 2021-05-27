@@ -106,7 +106,7 @@ class SieveTree:
             d = d[k]
 
         return filter(lambda kv: isinstance(kv[1], pd.Series) and kv[1].any(),
-                      recurse_items(d, *keys, from_key=from_key))
+                      recurse_items(d, from_key=from_key))
 
     def get_tree(self):
         return dict2tree(self.data)
@@ -134,7 +134,7 @@ st4 = st3.extend((
 ))
 
 # st4.data[None] &= False
-for k, m in st4.traverse_leaves():
+for k, m in st4.traverse_leaves('odd', 'b'):
     print(k)
     print(x[m])
 print()
