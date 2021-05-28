@@ -30,8 +30,9 @@ def sieve_stack(state, filters):
     s = gen_sieve(state)
     next(s)
     keys, masks = zip(*(*filters, (None, None)))
-    return filter(lambda km: isinstance(km[1].data, pd.Series) and km[1].data.any(),
-                  zip(keys, map(lambda m: Leaf(s.send(m)), masks)))
+    return filter(
+        lambda km: isinstance(km[1].data, pd.Series) and km[1].data.any(),
+        zip(keys, map(lambda m: Leaf(s.send(m)), masks)))
 
 
 def root(filters):
@@ -110,8 +111,9 @@ class SieveTree:
         for k in iter(keys):
             d = d[k]
 
-        return filter(lambda kv: isinstance(kv[1].data, pd.Series) and kv[1].data.any(),
-                      recurse_items(d, from_key=from_key))
+        return filter(
+            lambda kv: isinstance(kv[1].data, pd.Series) and kv[1].data.any(),
+            recurse_items(d, from_key=from_key))
 
     def get_tree(self):
         return dict2tree(self.d)
@@ -119,6 +121,37 @@ class SieveTree:
     def __repr__(self):
         return self.get_tree().get_ascii(show_internal=True)
 
+
+class Picker:
+
+    def __init__(self, name, d):
+        self.name = name
+        self.d = d
+
+    def pick_leaf(self, k, m):
+        self.d[k] = m.data
+        m.data = self.name
+
+    def merge(self, to_key, *from_keys):
+        for k in iter(from_keys):
+            self.d[to_key] |= self.d[k]
+            del self.d[k]
+
+
+class Results():
+
+    def __init__(self):
+        self.d = {}
+
+    def picker(self, *keys):
+        d = self.d
+        for k in iter(keys):
+            try:
+                d = d[k]
+            except KeyError:
+                d[k] = {}
+                d = d[k]
+        return Picker(' '.join((str(k) for k in keys)), d)
 
 
 if __name__ == '__main__':
