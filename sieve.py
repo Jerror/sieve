@@ -161,6 +161,13 @@ class Picker:
         return res
 
 
+def pretty_nested_dict_keys(d, indent=0):
+    s = ''
+    for key, value in d.items():
+        s += '\t' * indent + str(key) + '\n'
+        if isinstance(value, dict):
+            s += pretty_nested_dict_keys(value, indent + 1)
+    return s
 
 
 class Results():
@@ -177,6 +184,9 @@ class Results():
                 d[k] = {}
                 d = d[k]
         return Picker(' '.join((str(k) for k in keys)), d)
+
+    def __repr__(self):
+        return pretty_nested_dict_keys(self.d)
 
 
 if __name__ == '__main__':
