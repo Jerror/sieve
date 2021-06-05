@@ -106,6 +106,16 @@ class SieveTree:
         extend(d, filters)
         return None if inplace else new_tree
 
+    def get_leaf(self, *keys):
+        d = self.d
+        for k in iter(keys[:-1]):
+            d = d[k]
+
+        return d[keys[-1]]
+
+    def get(self, *keys):
+        return self.get_leaf(*keys).data
+
     def traverse_leaves(self, *keys, from_key=None):
         d = self.d
         for k in iter(keys):
