@@ -139,13 +139,28 @@ class Picker:
         self.d = d
 
     def pick_leaf(self, k, m):
-        self.d[k] = m.data
-        m.data = self.name
+        if not isinstance(m, Leaf):
+            raise RuntimeError('Expected a Leaf')
+        if not isinstance(m.data, pd.Series):
+            raise RuntimeError('Leaf already plucked: ' + str(m.data))
 
-    def merge(self, to_key, *from_keys):
-        for k in iter(from_keys):
-            self.d[to_key] |= self.d[k]
-            del self.d[k]
+        if k in self.d:
+            self.d[k] |= m.data
+        else:
+            self.d[k] = m.data
+        m.data = self.name + ' ' + k
+
+    def pick_leaves(self, pairs):
+        for k, m in pairs:
+            self.pick_leaf(k, m)
+
+    def merged(self):
+        res = False
+        for k, m in recurse_items(self.d):
+            res |= m
+        return res
+
+
 
 
 class Results():
