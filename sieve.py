@@ -154,7 +154,7 @@ class Picker:
             self.d[k] |= m.data
         else:
             self.d[k] = m.data
-        m.data = self.name + ' ' + k
+        m.data = self.name + ' ' + str(k)
 
     def pick_leaves(self, pairs):
         for k, m in pairs:
