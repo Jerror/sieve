@@ -33,7 +33,9 @@ def sieve_stack(state, filters):
         state = state.copy()
     s = gen_sieve(state)
     next(s)
+    # append 'exhaustion' filter (None, None) and expand
     keys, masks = zip(*(*filters, (None, None)))
+    # create leaves of sieved state, filtering invalid or empty results
     return filter(
         lambda km: isinstance(km[1].data, pandas_vec_types) and km[1].data.any(),
         zip(keys, map(lambda m: Leaf(s.send(m)), masks)))
