@@ -1,14 +1,18 @@
 import copy
 import itertools as it
 import pandas as pd
+from numpy import ndarray
 from ete3 import Tree
 from dataclasses import dataclass
 from typing import Union
 
 
+# These types may contain valid "boolean vectors" for Pandas Series indexing
+pandas_vec_types = (list, ndarray, pd.core.arrays.ExtensionArray, pd.Series, pd.Index)
+
 @dataclass
 class Leaf:
-    data: Union[pd.Series, str]
+    data: Union[Union[pandas_vec_types], str]
 
 
 def gen_sieve(state):
@@ -24,14 +28,14 @@ def gen_sieve(state):
 
 def sieve_stack(state, filters):
     if state is not True:
-        if not isinstance(state, pd.Series):
+        if not isinstance(state, pandas_vec_types):
             raise RuntimeError
         state = state.copy()
     s = gen_sieve(state)
     next(s)
     keys, masks = zip(*(*filters, (None, None)))
     return filter(
-        lambda km: isinstance(km[1].data, pd.Series) and km[1].data.any(),
+        lambda km: isinstance(km[1].data, pandas_vec_types) and km[1].data.any(),
         zip(keys, map(lambda m: Leaf(s.send(m)), masks)))
 
 
@@ -68,7 +72,7 @@ def dict2tree(d, *parents):
         n = n.add_child(name=k)
         if isinstance(v, dict):
             n.add_child(dict2tree(v, *parents, k))
-        elif isinstance(v.data, pd.Series):
+        elif isinstance(v.data, pandas_vec_types):
             label = str((*parents, k)) if v.data.any() else '()'
             n.add_child(name=label)
         else:
@@ -122,7 +126,7 @@ class SieveTree:
             d = d[k]
 
         return filter(
-            lambda kv: isinstance(kv[1].data, pd.Series) and kv[1].data.any(),
+            lambda kv: isinstance(kv[1].data, pandas_vec_types) and kv[1].data.any(),
             recurse_items(d, from_key=from_key))
 
     def get_tree(self):
@@ -141,7 +145,7 @@ class Picker:
     def pick_leaf(self, k, m):
         if not isinstance(m, Leaf):
             raise RuntimeError('Expected a Leaf')
-        if not isinstance(m.data, pd.Series):
+        if not isinstance(m.data, pandas_vec_types):
             raise RuntimeError('Leaf already plucked: ' + str(m.data))
 
         if k in self.d:
@@ -219,4 +223,8 @@ if __name__ == '__main__':
         print(x[m.data])
     print()
 
+    print(st4)
+
+    leaf = st4.get_leaf('x')
+    leaf.data = 'yoink'
     print(st4)
