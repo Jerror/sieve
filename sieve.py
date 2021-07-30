@@ -1,14 +1,16 @@
+from typing import Union
+from collections.abc import Mapping
 import copy
 import itertools as it
 import pandas as pd
 from numpy import ndarray
 from ete3 import Tree
 from dataclasses import dataclass
-from typing import Union
 
 
 # These types may contain valid "boolean vectors" for Pandas Series indexing
 pandas_vec_types = (list, ndarray, pd.core.arrays.ExtensionArray, pd.Series, pd.Index)
+
 
 @dataclass
 class Leaf:
@@ -41,94 +43,78 @@ def sieve_stack(state, filters):
         zip(keys, map(lambda m: Leaf(s.send(m)), masks)))
 
 
-def branch(d, k, filters):
-    d[k] = dict(sieve_stack(d[k].data, filters))
-    return d[k]
-
-
-def extend(d, filters):
-    state = d.pop(None).data
-    d.update(sieve_stack(state, filters))
-    return d
-
-
 def recurse_items(d, *parents, from_key=None):
     items = d.items()
     if from_key is not None:
         items = it.dropwhile(lambda kv: kv[0] != from_key, items)
     for k, m in items:
-        if isinstance(m, dict):
+        if isinstance(m, Mapping):
             yield from recurse_items(m, *parents, k)
         else:
             yield (k, m) if len(parents) == 0 else ((*parents, k), m)
 
 
-def dict2tree(d, *parents):
-    root = Tree()
-    n = root
-    for k, v in d.items():
-        n = n.add_child(name=k)
-        if isinstance(v, dict):
-            n.add_child(dict2tree(v, *parents, k))
-        elif isinstance(v.data, pandas_vec_types):
-            label = str((*parents, k)) if v.data.any() else '()'
-            n.add_child(name=label)
-        else:
-            n.add_child(name=str(v.data))
-    n.delete()
-    return root
-
-
-class SieveTree:
+class Sieve(Mapping):
 
     def __init__(self, state=True):
-        self.d = {None: Leaf(state)}
+        self.mapping = {None: Leaf(state)}
 
-    def branch(self, filters, *keys, inplace=False):
-        if inplace:
-            new_tree = self
+    def __getitem__(self, key):
+        val = self.mapping[key]
+        if isinstance(val, Leaf):
+            return val.data
+        elif isinstance(val, Sieve):
+            return val
         else:
-            new_tree = copy.deepcopy(self)
-        d = new_tree.d
-        for k in iter(keys[:-1]):
-            d = d[k]
+            raise RuntimeError("Invalid value type " + str(type(val)))
 
-        branch(d, keys[-1], filters)
-        return None if inplace else new_tree
+    def __iter__(self):
+        return iter(self.mapping)
 
-    def extend(self, filters, *keys, inplace=False):
-        if inplace:
-            new_tree = self
-        else:
-            new_tree = copy.deepcopy(self)
-        d = new_tree.d
-        for k in iter(keys):
-            d = d[k]
+    def __len__(self):
+        return len(self.mapping)
 
-        extend(d, filters)
-        return None if inplace else new_tree
-
-    def get_leaf(self, *keys):
-        d = self.d
+    def getdown(self, *keys):
+        d = self
         for k in iter(keys[:-1]):
             d = d[k]
 
         return d[keys[-1]]
 
-    def get(self, *keys):
-        return self.get_leaf(*keys).data
+    def extend(self, filters, *keys, inplace=False):
+        sieve = self if inplace else copy.deepcopy(self)
+        sub = sieve.getdown(*keys) if keys else sieve
+        sub.mapping.update(sieve_stack(sub.mapping.pop(None).data, filters))
+        if not inplace:
+            return sieve
+
+    def branch(self, filters, *keys, inplace=False):
+        sieve = self if inplace else copy.deepcopy(self)
+        sub = sieve.getdown(keys[:-1]) if keys[:-1] else sieve
+        sub.mapping[keys[-1]] = Sieve(sub[keys[-1]]).extend(filters, inplace=False)
+        if not inplace:
+            return sieve
 
     def traverse_leaves(self, *keys, from_key=None):
-        d = self.d
-        for k in iter(keys):
-            d = d[k]
-
+        sieve = self.getdown(*keys) if keys else self
         return filter(
-            lambda kv: isinstance(kv[1].data, pandas_vec_types) and kv[1].data.any(),
-            recurse_items(d, from_key=from_key))
+            lambda kv: isinstance(kv[1], pandas_vec_types) and kv[1].any(),
+            recurse_items(sieve, from_key=from_key))
 
-    def get_tree(self):
-        return dict2tree(self.d)
+    def get_tree(self, *parents):
+        root = Tree()
+        n = root
+        for k, v in self.items():
+            n = n.add_child(name=k)
+            if isinstance(v, Sieve):
+                n.add_child(v.get_tree(*parents, k))
+            elif isinstance(v, pandas_vec_types):
+                label = str((*parents, k)) if v.any() else '()'
+                n.add_child(name=label)
+            else:
+                n.add_child(name=str(v.data))
+        n.delete()
+        return root
 
     def __repr__(self):
         return self.get_tree().get_ascii(show_internal=True)
@@ -136,9 +122,10 @@ class SieveTree:
 
 class Picker:
 
-    def __init__(self, name, d):
+    def __init__(self, name, data=()):
         self.name = name
-        self.d = d
+        self.mapping = {}
+        self.mapping.update(data)
 
     def pick_leaf(self, k, m):
         if not isinstance(m, Leaf):
@@ -146,10 +133,10 @@ class Picker:
         if not isinstance(m.data, pandas_vec_types):
             raise RuntimeError('Leaf already plucked: ' + str(m.data))
 
-        if k in self.d:
-            self.d[k] |= m.data
+        if k in self.mapping:
+            self.mapping[k] |= m.data
         else:
-            self.d[k] = m.data
+            self.mapping[k] = m.data
         m.data = self.name + ' ' + str(k)
 
     def pick_leaves(self, pairs):
@@ -158,7 +145,7 @@ class Picker:
 
     def merged(self):
         res = False
-        for k, m in recurse_items(self.d):
+        for k, m in recurse_items(self.mapping):
             res |= m
         return res
 
@@ -175,10 +162,10 @@ def pretty_nested_dict_keys(d, indent=0):
 class Results():
 
     def __init__(self):
-        self.d = {}
+        self.mapping = {}
 
     def picker(self, *keys):
-        d = self.d
+        d = self.mapping
         for k in iter(keys):
             try:
                 d = d[k]
@@ -188,4 +175,4 @@ class Results():
         return Picker(' '.join((str(k) for k in keys)), d)
 
     def __repr__(self):
-        return pretty_nested_dict_keys(self.d)
+        return pretty_nested_dict_keys(self.mapping)
