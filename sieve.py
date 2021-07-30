@@ -41,10 +41,6 @@ def sieve_stack(state, filters):
         zip(keys, map(lambda m: Leaf(s.send(m)), masks)))
 
 
-def root(filters):
-    return dict(sieve_stack(True, filters))
-
-
 def branch(d, k, filters):
     d[k] = dict(sieve_stack(d[k].data, filters))
     return d[k]
@@ -85,8 +81,8 @@ def dict2tree(d, *parents):
 
 class SieveTree:
 
-    def __init__(self, filters):
-        self.d = root(filters)
+    def __init__(self, state=True):
+        self.d = {None: Leaf(state)}
 
     def branch(self, filters, *keys, inplace=False):
         if inplace:
