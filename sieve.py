@@ -1,4 +1,4 @@
-from typing import Union
+from typing import Union, Callable
 from collections.abc import Mapping
 import copy
 import itertools as it
@@ -18,21 +18,25 @@ class Leaf:
 
 
 def gen_sieve(state):
+    if state is None:
+        state = True
     captured = None
     while state is True or state.any():
         mask = yield captured
         captured = state & (True if mask is None else mask)
-        state ^= captured
+        # not inplace: treat state parameter as immutable
+        state = state ^ captured
         if state is False:
             break
     yield captured
 
 
-def sieve_stack(state, filters):
-    if state is not True:
+def sieve_stack(state, filters, transform=None):
+    if transform is None:
+        transform = lambda x: x
+    if state is not None:
         if not isinstance(state, pandas_vec_types):
             raise RuntimeError
-        state = state.copy()
     s = gen_sieve(state)
     next(s)
     # append 'exhaustion' filter (None, None) and expand
@@ -40,7 +44,7 @@ def sieve_stack(state, filters):
     # create leaves of sieved state, filtering invalid or empty results
     return filter(
         lambda km: isinstance(km[1].data, pandas_vec_types) and km[1].data.any(
-        ), zip(keys, map(lambda m: Leaf(s.send(m)), masks)))
+        ), zip(keys, map(lambda m: Leaf(s.send(transform(m))), masks)))
 
 
 def recurse_items(d, *parents, from_key=None):
@@ -56,8 +60,27 @@ def recurse_items(d, *parents, from_key=None):
 
 class Sieve(Mapping):
 
-    def __init__(self, state=True):
-        self.mapping = {None: Leaf(state)}
+    def __init__(self, state=None, transform=None):
+        if transform is None:
+            self.transform = lambda x: x
+        elif transform == 'sparse':
+            # Reduce memory complexity O(n^2) -> O(n) but lose packbits savings
+            self.transform = lambda x: pd.arrays.SparseArray(
+                x, dtype=bool, fill_value=False)
+        elif isinstance(transform, Callable):
+            self.transform = transform
+        else:
+            raise RuntimeError("Invalid transform")
+
+        self.mapping = {None: Leaf(self._transform(state))}
+
+    def _transform(self, x):
+        if x is None:
+            return x
+        try:
+            return self.transform(x)
+        except Exception:
+            return x
 
     def __iter__(self):
         return iter(self.mapping)
@@ -98,15 +121,17 @@ class Sieve(Mapping):
     def extend(self, filters, *keys, inplace=False):
         sieve = self if inplace else copy.deepcopy(self)
         sub = sieve.get_sieve(*keys) if keys else sieve
-        sub.mapping.update(sieve_stack(sub.mapping.pop(None).data, filters))
+        sub.mapping.update(
+            sieve_stack(sub.mapping.pop(None).data, filters, self._transform))
         if not inplace:
             return sieve
 
     def branch(self, filters, *keys, inplace=False):
         sieve = self if inplace else copy.deepcopy(self)
         sub = sieve.get_sieve(keys[:-1]) if keys[:-1] else sieve
-        sub.mapping[keys[-1]] = Sieve(sub.get_data(keys[-1])).extend(
-            filters, inplace=False)
+        sub.mapping[keys[-1]] = Sieve(sub.get_data(keys[-1]),
+                                      transform=self.transform).extend(
+                                          filters, inplace=False)
         if not inplace:
             return sieve
 
