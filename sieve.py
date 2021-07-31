@@ -59,46 +59,60 @@ class Sieve(Mapping):
     def __init__(self, state=True):
         self.mapping = {None: Leaf(state)}
 
-    def __getitem__(self, key):
-        val = self.mapping[key]
-        if isinstance(val, Leaf):
-            return val.data
-        elif isinstance(val, Sieve):
-            return val
-        else:
-            raise RuntimeError("Invalid value type " + str(type(val)))
-
     def __iter__(self):
         return iter(self.mapping)
 
     def __len__(self):
         return len(self.mapping)
 
-    def getdown(self, *keys):
-        d = self
-        for k in iter(keys[:-1]):
-            d = d[k]
+    def __getitem__(self, key):
+        # Standard accessor with value typechecking.
+        # Restricting vals to (Leaf, Sieve) enforces desired tree structure
+        val = self.mapping[key]
+        if not isinstance(val, (Leaf, Sieve)):
+            raise LookupError("Invalid value type " + str(type(val)))
+        return val
 
-        return d[keys[-1]]
+    def get_node(self, *keys):
+        # Convenient nested access
+        node = self
+        for k in iter(keys[:-1]):
+            node = node[k]
+        return node[keys[-1]]
+
+    def get_sieve(self, *keys):
+        node = self.get_node(*keys)
+        if not isinstance(node, Sieve):
+            raise LookupError("Expected Leaf, got " + str(type(node)))
+        return node
+
+    def get_leaf(self, *keys):
+        node = self.get_node(*keys)
+        if not isinstance(node, Leaf):
+            raise LookupError("Expected Leaf, got " + str(type(node)))
+        return node
+
+    def get_data(self, *keys):
+        return self.get_leaf(*keys).data
 
     def extend(self, filters, *keys, inplace=False):
         sieve = self if inplace else copy.deepcopy(self)
-        sub = sieve.getdown(*keys) if keys else sieve
+        sub = sieve.get_sieve(*keys) if keys else sieve
         sub.mapping.update(sieve_stack(sub.mapping.pop(None).data, filters))
         if not inplace:
             return sieve
 
     def branch(self, filters, *keys, inplace=False):
         sieve = self if inplace else copy.deepcopy(self)
-        sub = sieve.getdown(keys[:-1]) if keys[:-1] else sieve
-        sub.mapping[keys[-1]] = Sieve(sub[keys[-1]]).extend(filters, inplace=False)
+        sub = sieve.get_sieve(keys[:-1]) if keys[:-1] else sieve
+        sub.mapping[keys[-1]] = Sieve(sub.get_data(keys[-1])).extend(filters, inplace=False)
         if not inplace:
             return sieve
 
     def traverse_leaves(self, *keys, from_key=None):
-        sieve = self.getdown(*keys) if keys else self
+        sieve = self.get_node(*keys) if keys else self
         return filter(
-            lambda kv: isinstance(kv[1], pandas_vec_types) and kv[1].any(),
+            lambda kv: isinstance(kv[1].data, pandas_vec_types) and kv[1].data.any(),
             recurse_items(sieve, from_key=from_key))
 
     def get_tree(self, *parents):
@@ -108,8 +122,8 @@ class Sieve(Mapping):
             n = n.add_child(name=k)
             if isinstance(v, Sieve):
                 n.add_child(v.get_tree(*parents, k))
-            elif isinstance(v, pandas_vec_types):
-                label = str((*parents, k)) if v.any() else '()'
+            elif isinstance(v.data, pandas_vec_types):
+                label = str((*parents, k)) if v.data.any() else '()'
                 n.add_child(name=label)
             else:
                 n.add_child(name=str(v.data))
@@ -122,10 +136,9 @@ class Sieve(Mapping):
 
 class Picker:
 
-    def __init__(self, name, data=()):
+    def __init__(self, name, d):
         self.name = name
-        self.mapping = {}
-        self.mapping.update(data)
+        self.mapping = d
 
     def pick_leaf(self, k, m):
         if not isinstance(m, Leaf):
@@ -159,7 +172,7 @@ def pretty_nested_dict_keys(d, indent=0):
     return s
 
 
-class Results():
+class Results:
 
     def __init__(self):
         self.mapping = {}
