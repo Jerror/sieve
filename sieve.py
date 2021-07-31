@@ -7,9 +7,9 @@ from numpy import ndarray
 from ete3 import Tree
 from dataclasses import dataclass
 
-
 # These types may contain valid "boolean vectors" for Pandas Series indexing
-pandas_vec_types = (list, ndarray, pd.core.arrays.ExtensionArray, pd.Series, pd.Index)
+pandas_vec_types = (list, ndarray, pd.core.arrays.ExtensionArray, pd.Series,
+                    pd.Index)
 
 
 @dataclass
@@ -39,8 +39,8 @@ def sieve_stack(state, filters):
     keys, masks = zip(*(*filters, (None, None)))
     # create leaves of sieved state, filtering invalid or empty results
     return filter(
-        lambda km: isinstance(km[1].data, pandas_vec_types) and km[1].data.any(),
-        zip(keys, map(lambda m: Leaf(s.send(m)), masks)))
+        lambda km: isinstance(km[1].data, pandas_vec_types) and km[1].data.any(
+        ), zip(keys, map(lambda m: Leaf(s.send(m)), masks)))
 
 
 def recurse_items(d, *parents, from_key=None):
@@ -105,15 +105,16 @@ class Sieve(Mapping):
     def branch(self, filters, *keys, inplace=False):
         sieve = self if inplace else copy.deepcopy(self)
         sub = sieve.get_sieve(keys[:-1]) if keys[:-1] else sieve
-        sub.mapping[keys[-1]] = Sieve(sub.get_data(keys[-1])).extend(filters, inplace=False)
+        sub.mapping[keys[-1]] = Sieve(sub.get_data(keys[-1])).extend(
+            filters, inplace=False)
         if not inplace:
             return sieve
 
     def traverse_leaves(self, *keys, from_key=None):
         sieve = self.get_node(*keys) if keys else self
         return filter(
-            lambda kv: isinstance(kv[1].data, pandas_vec_types) and kv[1].data.any(),
-            recurse_items(sieve, from_key=from_key))
+            lambda kv: isinstance(kv[1].data, pandas_vec_types) and kv[1].data.
+            any(), recurse_items(sieve, from_key=from_key))
 
     def get_tree(self, *parents):
         root = Tree()
