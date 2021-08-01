@@ -1,12 +1,12 @@
-from typing import Union, Callable
-from collections import UserDict
-from collections.abc import Mapping
 import copy
 import itertools as it
-import pandas as pd
-from numpy import ndarray
-from ete3 import Tree
+from collections import UserDict
+from collections.abc import Mapping
 from dataclasses import dataclass
+from typing import Callable, Union
+
+import pandas as pd
+from ete3 import Tree
 
 
 def recurse_items(d, *parents, from_key=None):
