@@ -19,6 +19,26 @@ def fun_date_isin(col, dates):
         "datetime64[D]").isin(dates)
 
 
+def reduce_matching(df, matchcol, sumcols=None, match=None, fillna=None):
+    mycol = df[matchcol]
+    if fillna is not None:
+        if fillna in mycol.values:
+            print('Warning: found ' + str(fillna) + ' in preexisting values')
+        mycol = mycol.fillna(fillna)
+    if match is None:
+        match = mycol.unique()
+    if sumcols is None:
+        return match
+    dat = pd.concat([
+        pd.DataFrame(df[mycol == d][sumcols].sum()).transpose() for d in match
+    ],
+                    join="inner",
+                    ignore_index=True)
+    dat.insert(len(sumcols), matchcol, match)
+    dat.sort_values(by=sumcols, ascending=False, inplace=True)
+    return dat
+
+
 def recurse_items(d, *parents, from_key=None):
     items = d.items()
     if from_key is not None:
@@ -109,6 +129,14 @@ class Sieve(Mapping):
             filters, inplace=False)
         if not inplace:
             return sieve
+
+    def reduce_remainder(self,
+                         matchcol,
+                         sumcols=None,
+                         match=None,
+                         fillna=None):
+        return reduce_matching(self.get_data(None), matchcol, sumcols, match,
+                               fillna)
 
     def traverse_leaves(self, *keys, from_key=None):
         sieve = self.get_node(*keys) if keys else self
