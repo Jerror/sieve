@@ -9,6 +9,16 @@ import pandas as pd
 from ete3 import Tree
 
 
+def fun_contains_str(col, patt, **kwargs):
+    return lambda df, patt=patt, kwargs=kwargs: df[col].str.contains(
+        patt, **kwargs)
+
+
+def fun_date_isin(col, dates):
+    return lambda df, dates=dates: df[col].dt.tz_localize(None).astype(
+        "datetime64[D]").isin(dates)
+
+
 def recurse_items(d, *parents, from_key=None):
     items = d.items()
     if from_key is not None:
