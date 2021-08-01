@@ -139,7 +139,7 @@ class Picker:
 
         if k in self.mapping:
             self.mapping[k] = pd.concat((self.mapping[k], m.dataframes),
-                                        axis=1,
+                                        axis=0,
                                         copy=False)
         else:
             self.mapping[k] = m.data
@@ -152,7 +152,7 @@ class Picker:
     def merged(self):
         if self.mapping:
             _, frames = zip(*recurse_items(self.mapping))
-            return pd.concat(frames, axis=1, copy=False)
+            return pd.concat(frames, axis=0, copy=False)
         else:
             return pd.DataFrame()
 
