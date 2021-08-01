@@ -1,5 +1,6 @@
 import copy
 import itertools as it
+import subprocess
 from collections import UserDict
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -158,6 +159,32 @@ class Sieve(Mapping):
                 n.add_child(name=str(v.data))
         n.delete()
         return root
+
+    def table(self, path, *keys, align=True, **kwargs):
+        out = ''
+        first = True
+        for k, v in self.traverse_leaves(*keys, **kwargs):
+            if first:
+                out += ','.join([
+                    '' if x is None else x
+                    for x in v.data.index.names + list(v.data.columns)
+                ]) + '\n'
+            out += '# ' + str(k) + '\n'
+            out += v.data.to_csv(None, header=False)
+            first = False
+
+        if align:
+            out = subprocess.check_output(
+                "sed '/^#/!s/,/,:/g' | column -t -s: | sed '/^#/!s/, /,/g'",
+                input=out,
+                shell=True,
+                encoding='ascii')
+
+        if path is None:
+            return out
+        else:
+            with open(path, 'w') as f:
+                f.write(out)
 
     def __repr__(self):
         return self.get_tree().get_ascii(show_internal=True)
