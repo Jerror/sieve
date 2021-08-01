@@ -1,4 +1,5 @@
 from typing import Union, Callable
+from collections import UserDict
 from collections.abc import Mapping
 import copy
 import itertools as it
@@ -193,25 +194,22 @@ def pretty_nested_dict_keys(d, indent=0):
     s = ''
     for key, value in d.items():
         s += '\t' * indent + str(key) + '\n'
-        if isinstance(value, dict):
+        if isinstance(value, Mapping):
             s += pretty_nested_dict_keys(value, indent + 1)
     return s
 
 
-class Results:
-
-    def __init__(self):
-        self.mapping = {}
+class Results(UserDict):
 
     def picker(self, *keys):
-        d = self.mapping
+        d = self.data
         for k in iter(keys):
             try:
                 d = d[k]
             except KeyError:
-                d[k] = {}
+                d[k] = Results()
                 d = d[k]
         return Picker(' '.join((str(k) for k in keys)), d)
 
     def __repr__(self):
-        return pretty_nested_dict_keys(self.mapping)
+        return pretty_nested_dict_keys(self.data)
