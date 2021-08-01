@@ -8,45 +8,6 @@ from numpy import ndarray
 from ete3 import Tree
 from dataclasses import dataclass
 
-# These types may contain valid "boolean vectors" for Pandas Series indexing
-pandas_vec_types = (list, ndarray, pd.core.arrays.ExtensionArray, pd.Series,
-                    pd.Index)
-
-
-@dataclass
-class Leaf:
-    data: Union[Union[pandas_vec_types], str]
-
-
-def gen_sieve(state):
-    if state is None:
-        state = True
-    captured = None
-    while state is True or state.any():
-        mask = yield captured
-        captured = state & (True if mask is None else mask)
-        # not inplace: treat state parameter as immutable
-        state = state ^ captured
-        if state is False:
-            break
-    yield captured
-
-
-def sieve_stack(state, filters, transform=None):
-    if transform is None:
-        transform = lambda x: x
-    if state is not None:
-        if not isinstance(state, pandas_vec_types):
-            raise RuntimeError
-    s = gen_sieve(state)
-    next(s)
-    # append 'exhaustion' filter (None, None) and expand
-    keys, masks = zip(*(*filters, (None, None)))
-    # create leaves of sieved state, filtering invalid or empty results
-    return filter(
-        lambda km: isinstance(km[1].data, pandas_vec_types) and km[1].data.any(
-        ), zip(keys, map(lambda m: Leaf(s.send(transform(m))), masks)))
-
 
 def recurse_items(d, *parents, from_key=None):
     items = d.items()
@@ -59,29 +20,15 @@ def recurse_items(d, *parents, from_key=None):
             yield (k, m) if len(parents) == 0 else ((*parents, k), m)
 
 
+@dataclass
+class Leaf:
+    data: Union[pd.DataFrame, str]
+
+
 class Sieve(Mapping):
 
-    def __init__(self, state=None, transform=None):
-        if transform is None:
-            self.transform = lambda x: x
-        elif transform == 'sparse':
-            # Reduce memory complexity O(n^2) -> O(n) but lose packbits savings
-            self.transform = lambda x: pd.arrays.SparseArray(
-                x, dtype=bool, fill_value=False)
-        elif isinstance(transform, Callable):
-            self.transform = transform
-        else:
-            raise RuntimeError("Invalid transform")
-
-        self.mapping = {None: Leaf(self._transform(state))}
-
-    def _transform(self, x):
-        if x is None:
-            return x
-        try:
-            return self.transform(x)
-        except Exception:
-            return x
+    def __init__(self, state):
+        self.mapping = {None: Leaf(state)}
 
     def __iter__(self):
         return iter(self.mapping)
@@ -122,25 +69,42 @@ class Sieve(Mapping):
     def extend(self, filters, *keys, inplace=False):
         sieve = self if inplace else copy.deepcopy(self)
         sub = sieve.get_sieve(*keys) if keys else sieve
-        sub.mapping.update(
-            sieve_stack(sub.mapping.pop(None).data, filters, self._transform))
+
+        state = sub.mapping.pop(None).data
+        for k, f in (*filters, (None, None)):
+            if state.empty:
+                break
+            if k in sub:
+                raise RuntimeError("Key " + str(k) + " is not unique")
+            if f is None:
+                sub.mapping[k] = Leaf(state)
+                state = pd.DataFrame()
+            else:
+                if isinstance(f, Callable):
+                    mask = f(state)
+                else:
+                    mask = state.eval(f)
+                if mask.any():
+                    sub.mapping[k] = Leaf(state[mask])
+                    state = state[~mask]
+
         if not inplace:
             return sieve
 
     def branch(self, filters, *keys, inplace=False):
         sieve = self if inplace else copy.deepcopy(self)
         sub = sieve.get_sieve(keys[:-1]) if keys[:-1] else sieve
-        sub.mapping[keys[-1]] = Sieve(sub.get_data(keys[-1]),
-                                      transform=self.transform).extend(
-                                          filters, inplace=False)
+
+        sub.mapping[keys[-1]] = Sieve(sub.get_data(keys[-1])).extend(
+            filters, inplace=False)
         if not inplace:
             return sieve
 
     def traverse_leaves(self, *keys, from_key=None):
         sieve = self.get_node(*keys) if keys else self
         return filter(
-            lambda kv: isinstance(kv[1].data, pandas_vec_types) and kv[1].data.
-            any(), recurse_items(sieve, from_key=from_key))
+            lambda kv: isinstance(kv[1].data, pd.DataFrame) and not kv[1].data.
+            empty, recurse_items(sieve, from_key=from_key))
 
     def get_tree(self, *parents):
         root = Tree()
@@ -149,8 +113,8 @@ class Sieve(Mapping):
             n = n.add_child(name=k)
             if isinstance(v, Sieve):
                 n.add_child(v.get_tree(*parents, k))
-            elif isinstance(v.data, pandas_vec_types):
-                label = str((*parents, k)) if v.data.any() else '()'
+            elif isinstance(v.data, pd.DataFrame):
+                label = str((*parents, k)) if not v.data.empty else '()'
                 n.add_child(name=label)
             else:
                 n.add_child(name=str(v.data))
@@ -170,11 +134,13 @@ class Picker:
     def pick_leaf(self, k, m):
         if not isinstance(m, Leaf):
             raise RuntimeError('Expected a Leaf')
-        if not isinstance(m.data, pandas_vec_types):
+        if not isinstance(m.data, pd.DataFrame):
             raise RuntimeError('Leaf already plucked: ' + str(m.data))
 
         if k in self.mapping:
-            self.mapping[k] |= m.data
+            self.mapping[k] = pd.concat((self.mapping[k], m.dataframes),
+                                        axis=1,
+                                        copy=False)
         else:
             self.mapping[k] = m.data
         m.data = self.name + ' ' + str(k)
@@ -184,10 +150,11 @@ class Picker:
             self.pick_leaf(k, m)
 
     def merged(self):
-        res = False
-        for k, m in recurse_items(self.mapping):
-            res |= m
-        return res
+        if self.mapping:
+            _, frames = zip(*recurse_items(self.mapping))
+            return pd.concat(frames, axis=1, copy=False)
+        else:
+            return pd.DataFrame()
 
 
 def pretty_nested_dict_keys(d, indent=0):
