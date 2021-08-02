@@ -233,7 +233,7 @@ class Picker:
             raise RuntimeError('Leaf already plucked: ' + str(m.data))
 
         if k in self.mapping:
-            self.mapping[k] = pd.concat((self.mapping[k], m.dataframes),
+            self.mapping[k] = pd.concat((self.mapping[k], m.data),
                                         axis=0,
                                         copy=False)
         else:
@@ -275,3 +275,56 @@ class Results(UserDict):
 
     def __repr__(self):
         return pretty_nested_dict_keys(self.data)
+
+
+def varargs_comp(y, *x):
+    for yy, xx in zip(y, iter(x)):
+        if yy != xx:
+            return False
+    return True
+
+
+class Sieve:
+
+    def __init__(self, state):
+        self.tree = SieveTree(state)
+        self.results = Results()
+
+    def get_results(self, *keys):
+        # Convenient nested access
+        res = self.results
+        for k in iter(keys[:-1]):
+            res = res[k]
+        return res[keys[-1]]
+
+    def extend(self, filters, *keys):
+        filters = list(filters)
+        self.tree.extend(filters, *keys, inplace=True)
+        return self.tree.table(*keys, from_key=filters[0][0])
+
+    def branch(self, filters, *keys):
+        self.tree.branch(filters, *keys, inplace=True)
+        return self.tree.table(*keys)
+
+    def pick_leaf(self, pickkeys, *reskeys):
+        self.results.picker(*reskeys).pick_leaf(
+            pickkeys[0], self.tree.get_leaf(*pickkeys[1:]))
+
+    def pick_leaves(self, pickkeys_list, *reskeys):
+        for pickkeys in pickkeys_list:
+            self.pick_leaf(pickkeys, *reskeys)
+
+    def merge(self, *keys):
+        res = self.get_results(*keys[:-1]) if keys[:-1] else self.results
+        res[keys[-1]] = self.results.picker().merged()
+
+    def find_keys(self, match):
+        if match is None:
+            return (None, ) if None in self.tree else tuple()
+        it = (k for k, _ in self.tree.traverse_leaves())
+        return tuple(
+            filter(lambda k: varargs_comp(match, *k),
+                   filter(lambda k: k is not None, it)))
+
+    def __repr__(self):
+        return self.results.__repr__()
