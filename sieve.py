@@ -147,7 +147,8 @@ class Sieve(Mapping):
             empty, recurse_items(sieve, from_key=from_key))
 
     def traverse_data(self, *keys, from_key=None):
-        return ((k, v.data) for k, v in self.traverse_leaves(*keys, from_key=None))
+        return ((k, v.data)
+                for k, v in self.traverse_leaves(*keys, from_key=None))
 
     def get_tree(self, *parents):
         root = Tree()
@@ -167,25 +168,35 @@ class Sieve(Mapping):
     def __repr__(self):
         return self.get_tree().get_ascii(show_internal=True)
 
-    def table(self, path, *keys, align=True, **kwargs):
+    def table(self, *keys, path=None, align=True, table_right=None, **kwargs):
+        sep = "\xFE"
         out = ''
         first = True
         for k, v in self.traverse_leaves(*keys, **kwargs):
             if first:
-                out += ','.join([
-                    '' if x is None else x
+                header = [
+                    'index' if x is None else x
                     for x in v.data.index.names + list(v.data.columns)
-                ]) + '\n'
-            out += '# ' + str(k) + '\n'
-            out += v.data.to_csv(None, header=False)
+                ]
+                out += sep.join(header) + '\n'
+            # With padding to cheat column -E
+            out += 100 * '#' + str((k, ))[1:-2] + '\n'
+            out += v.data.to_csv(None, sep=sep, header=False)
             first = False
 
         if align:
+            N = ' -N' + ','.join(header) + ' '
+            E = ' -E' + ','.join([header[0], header[-1]]) + ' '
+            R = ''
+            if table_right is not None:
+                R = ' -R' + ','.join(table_right) + ' '
+
             out = subprocess.check_output(
-                "sed '/^#/!s/,/,:/g' | column -t -s: | sed '/^#/!s/, /,/g'",
+                "sed '/^#/!s/,/" + sep + "/g' | column -t -d" + N + E + R +
+                "-s" + sep + " | sed '/^\\s*$/d' | sed 's/^#\\+/# /'",
                 input=out,
                 shell=True,
-                encoding='ascii')
+                encoding='utf-8')
 
         if path is None:
             return out
@@ -195,9 +206,9 @@ class Sieve(Mapping):
 
     def diff(self, other, context=3):
         with NamedTemporaryFile('w') as f:
-            f.write(other.table(None))
+            f.write(other.table())
             with NamedTemporaryFile('w') as f2:
-                f2.write(self.table(None))
+                f2.write(self.table())
                 diff = subprocess.run('diff --show-function-line="^#" -U ' +
                                       str(context) + ' ' + f.name + ' ' +
                                       f2.name,
