@@ -146,6 +146,9 @@ class Sieve(Mapping):
             lambda kv: isinstance(kv[1].data, pd.DataFrame) and not kv[1].data.
             empty, recurse_items(sieve, from_key=from_key))
 
+    def traverse_data(self, *keys, from_key=None):
+        return ((k, v.data) for k, v in self.traverse_leaves(*keys, from_key=None))
+
     def get_tree(self, *parents):
         root = Tree()
         n = root
