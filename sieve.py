@@ -57,7 +57,7 @@ class Leaf:
     data: Union[pd.DataFrame, str]
 
 
-class Sieve(Mapping):
+class SieveTree(Mapping):
 
     def __init__(self, state):
         self.mapping = {None: Leaf(state)}
@@ -70,9 +70,9 @@ class Sieve(Mapping):
 
     def __getitem__(self, key):
         # Standard accessor with value typechecking.
-        # Restricting vals to (Leaf, Sieve) enforces desired tree structure
+        # Restricting vals to (Leaf, SieveTree) enforces desired tree structure
         val = self.mapping[key]
-        if not isinstance(val, (Leaf, Sieve)):
+        if not isinstance(val, (Leaf, SieveTree)):
             raise LookupError("Invalid value type " + str(type(val)))
         return val
 
@@ -85,7 +85,7 @@ class Sieve(Mapping):
 
     def get_sieve(self, *keys):
         node = self.get_node(*keys)
-        if not isinstance(node, Sieve):
+        if not isinstance(node, SieveTree):
             raise LookupError("Expected Leaf, got " + str(type(node)))
         return node
 
@@ -127,7 +127,7 @@ class Sieve(Mapping):
         sieve = self if inplace else copy.deepcopy(self)
         sub = sieve.get_sieve(keys[:-1]) if keys[:-1] else sieve
 
-        sub.mapping[keys[-1]] = Sieve(sub.get_data(keys[-1])).extend(
+        sub.mapping[keys[-1]] = SieveTree(sub.get_data(keys[-1])).extend(
             filters, inplace=False)
         if not inplace:
             return sieve
@@ -155,7 +155,7 @@ class Sieve(Mapping):
         n = root
         for k, v in self.items():
             n = n.add_child(name=k)
-            if isinstance(v, Sieve):
+            if isinstance(v, SieveTree):
                 n.add_child(v.get_tree(*parents, k))
             elif isinstance(v.data, pd.DataFrame):
                 label = str((*parents, k)) if not v.data.empty else '()'
