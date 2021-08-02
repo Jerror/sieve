@@ -161,6 +161,9 @@ class Sieve(Mapping):
         n.delete()
         return root
 
+    def __repr__(self):
+        return self.get_tree().get_ascii(show_internal=True)
+
     def table(self, path, *keys, align=True, **kwargs):
         out = ''
         first = True
@@ -199,8 +202,8 @@ class Sieve(Mapping):
                                       stdout=subprocess.PIPE).stdout
         return diff.decode()
 
-    def __repr__(self):
-        return self.get_tree().get_ascii(show_internal=True)
+    def copy(self):
+        return copy.deepcopy(self)
 
 
 class Picker:
