@@ -306,13 +306,10 @@ class Sieve:
         self.tree.branch(filters, *keys, inplace=True)
         return self.tree.table(*keys)
 
-    def pick_leaf(self, pickkeys, *reskeys):
-        self.results.picker(*reskeys).pick_leaf(
-            pickkeys[0], self.tree.get_leaf(*pickkeys[1:]))
-
-    def pick_leaves(self, pickkeys_list, *reskeys):
+    def pick(self, pickkeys_list, *reskeys):
         for pickkeys in pickkeys_list:
-            self.pick_leaf(pickkeys, *reskeys)
+            self.results.picker(*reskeys).pick_leaf(
+                pickkeys[0], self.tree.get_leaf(*pickkeys[1:]))
 
     def merge(self, *keys):
         res = self.get_results(*keys[:-1]) if keys[:-1] else self.results
