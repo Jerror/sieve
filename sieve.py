@@ -1,6 +1,7 @@
 import copy
 import itertools as it
 import subprocess
+from tempfile import NamedTemporaryFile
 from collections import UserDict
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -185,6 +186,18 @@ class Sieve(Mapping):
         else:
             with open(path, 'w') as f:
                 f.write(out)
+
+    def diff(self, other, context=3):
+        with NamedTemporaryFile('w') as f:
+            f.write(other.table(None))
+            with NamedTemporaryFile('w') as f2:
+                f2.write(self.table(None))
+                diff = subprocess.run('diff --show-function-line="^#" -U ' +
+                                      str(context) + ' ' + f.name + ' ' +
+                                      f2.name,
+                                      shell=True,
+                                      stdout=subprocess.PIPE).stdout
+        return diff.decode()
 
     def __repr__(self):
         return self.get_tree().get_ascii(show_internal=True)
