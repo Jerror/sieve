@@ -207,8 +207,10 @@ class SieveTree(Mapping):
     def diff(self, other, context=3):
         with NamedTemporaryFile('w') as f:
             f.write(other.table())
+            f.flush()
             with NamedTemporaryFile('w') as f2:
                 f2.write(self.table())
+                f2.flush()
                 diff = subprocess.run('diff --show-function-line="^#" -U ' +
                                       str(context) + ' ' + f.name + ' ' +
                                       f2.name,
