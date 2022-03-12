@@ -7,8 +7,14 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Callable, Union
 
+from numpy import ndarray
 import pandas as pd
 from ete3 import Tree
+
+
+# These types may contain valid "boolean vectors" for Pandas Series indexing
+pandas_vec_types = (list, ndarray, pd.core.arrays.ExtensionArray, pd.Series,
+                    pd.Index)
 
 
 def fun_contains_str(col, patt, **kwargs):
@@ -135,6 +141,9 @@ class SieveTree(Mapping):
                 else:
                     raise TypeError("Expected Callable or string filter, got "
                                     + str(type(f)))
+                if not isinstance(mask, pandas_vec_types):
+                    raise TypeError("Filter must return a boolean vector, got "
+                                    + str(type(mask)))
                 if mask.any():
                     sub.mapping[k] = Leaf(state[mask])
                     state = state[~mask]
