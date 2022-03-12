@@ -86,7 +86,7 @@ class SieveTree(Mapping):
     def get_sieve(self, *keys):
         node = self.get_node(*keys)
         if not isinstance(node, SieveTree):
-            raise LookupError("Expected Leaf, got " + str(type(node)))
+            raise LookupError("Expected SieveTree, got " + str(type(node)))
         return node
 
     def get_leaf(self, *keys):
