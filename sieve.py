@@ -84,21 +84,37 @@ class SieveTree(Mapping):
         return node[keys[-1]]
 
     def get_sieve(self, *keys):
+        # Get subtree with nested accessing and type checking
         node = self.get_node(*keys)
         if not isinstance(node, SieveTree):
             raise LookupError("Expected SieveTree, got " + str(type(node)))
         return node
 
     def get_leaf(self, *keys):
+        # Get leaf with nested accessing and type checking
         node = self.get_node(*keys)
         if not isinstance(node, Leaf):
             raise LookupError("Expected Leaf, got " + str(type(node)))
         return node
 
     def get_data(self, *keys):
+        # Get data from leaf with nested accessing and type checking
         return self.get_leaf(*keys).data
 
     def extend(self, filters, *keys, inplace=False):
+        """ Extend branch specified by *keys with nodes created
+        from (iterable) filters. Filters act on the state which *doesn't*
+        match the previous filter, starting from the remainder leaf with
+        special key None of the specified branch; any leftover state is left
+        in a new None leaf. If state is exhausted filtration is ceased and
+        if a filter finds no matches no corresponding node is created.
+
+        Each filter is a (key, value) pair where key becomes the key of the
+        node in the branch mapping and value specifies the filtration. If
+        value is Callable it is called on the state. If value is a string it
+        is passed to state.eval. In any case the result is assumed to be a
+        boolean vector. """
+
         sieve = self if inplace else copy.deepcopy(self)
         sub = sieve.get_sieve(*keys) if keys else sieve
 
@@ -114,8 +130,11 @@ class SieveTree(Mapping):
             else:
                 if isinstance(f, Callable):
                     mask = f(state)
-                else:
+                elif isinstance(f, str):
                     mask = state.eval(f)
+                else:
+                    raise TypeError("Expected Callable or string filter, got "
+                                    + str(type(f)))
                 if mask.any():
                     sub.mapping[k] = Leaf(state[mask])
                     state = state[~mask]
@@ -124,6 +143,9 @@ class SieveTree(Mapping):
             return sieve
 
     def branch(self, filters, *keys, inplace=False):
+        """ Create a new branch on the state captured at leaf specified by
+        *keys and extend with filters. """
+
         sieve = self if inplace else copy.deepcopy(self)
         sub = sieve.get_sieve(keys[:-1]) if keys[:-1] else sieve
 
@@ -134,23 +156,34 @@ class SieveTree(Mapping):
 
     def reduce_remainder(self,
                          matchcol,
+                         *keys,
                          sumcols=None,
                          match=None,
                          fillna=None):
-        return reduce_matching(self.get_data(None), matchcol, sumcols, match,
+        # Perform reduction on the remainder state of branch at *keys
+        sub = self.get_sieve(*keys) if keys else self
+        return reduce_matching(sub.get_data(None), matchcol, sumcols, match,
                                fillna)
 
     def traverse_leaves(self, *keys, from_key=None):
+        """ Get depth-first iterator over leaves from branch at *keys starting
+        at from_key which traverses branches as encountered and skips leaves
+        containing data which is not a non-empty DataFrame. Items are (keys,
+        leaf) pairs where keys is a tuple including the keys of parent
+        branches. """
+
         sieve = self.get_node(*keys) if keys else self
         return filter(
             lambda kv: isinstance(kv[1].data, pd.DataFrame) and not kv[1].data.
             empty, recurse_items(sieve, from_key=from_key))
 
     def traverse_data(self, *keys, from_key=None):
+        # Same as traverse_leaves, but items contain leaf data instead of leaf
         return ((k, v.data)
                 for k, v in self.traverse_leaves(*keys, from_key=None))
 
     def get_tree(self, *parents):
+        # Get ete3 Tree representation of SieveTree structure
         root = Tree()
         n = root
         for k, v in self.items():
@@ -166,21 +199,29 @@ class SieveTree(Mapping):
         return root
 
     def __repr__(self):
+        # ASCII representation of SieveTree structure
         return self.get_tree().get_ascii(show_internal=True)
 
-    def table(self, *keys, path=None, align=True, table_right=None, **kwargs):
-        sep = "\xFE"
+    def table(self, *keys, from_key=None, path=None, align=True, table_right=None):
+        """ Return (or write to path) table of tree data in traverse_leaves
+        order with data from a given leaf headed by #<keys specifying leaf>.
+        Optionally align columns in space-separated format with select columns
+        right-aligned. """
+
+        sep = "\xFE" if align else ","
         out = ''
         first = True
-        for k, v in self.traverse_leaves(*keys, **kwargs):
+        for k, v in self.traverse_leaves(*keys, from_key=from_key):
             if first:
                 header = [
                     'index' if x is None else x
                     for x in v.data.index.names + list(v.data.columns)
                 ]
                 out += sep.join(header) + '\n'
-            # With padding to cheat column -E
-            out += 100 * '#' + str((k, ))[1:-2] + '\n'
+            if align:
+                # Padding to cheat column -E
+                out += 100 * '#'
+            out += '#' + str((k, ))[1:-2] + '\n'
             out += v.data.to_csv(None, sep=sep, header=False)
             first = False
 
@@ -204,12 +245,18 @@ class SieveTree(Mapping):
             with open(path, 'w') as f:
                 f.write(out)
 
-    def diff(self, other, context=3):
+    def diff(self, other, *keys, context=3, **kwargs):
+        """ Diff the table of this SieveTree with another. context specifies
+        the number of lines of context printed about differences.
+        This is mainly meant to be used to determine the trickle-down effects
+        of changing filters 'upstream' by duplicating and modifying the tree
+        creation code. """
+
         with NamedTemporaryFile('w') as f:
-            f.write(other.table())
+            f.write(other.table(*keys, **kwargs))
             f.flush()
             with NamedTemporaryFile('w') as f2:
-                f2.write(self.table())
+                f2.write(self.table(*keys, **kwargs))
                 f2.flush()
                 diff = subprocess.run('diff --show-function-line="^#" -U ' +
                                       str(context) + ' ' + f.name + ' ' +
