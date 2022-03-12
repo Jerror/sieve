@@ -18,27 +18,31 @@ pandas_vec_types = (list, ndarray, pd.core.arrays.ExtensionArray, pd.Series,
 
 
 def fun_contains_str(col, patt, **kwargs):
+    # Return callback for pandas.Series.str.contains filtering
     return lambda df, patt=patt, kwargs=kwargs: df[col].str.contains(
         patt, **kwargs)
 
 
-def fun_date_isin(col, dates):
-    return lambda df, dates=dates: df[col].dt.tz_localize(None).astype(
+def fun_date_isin(datecol, dates):
+    # Return callback for date filtering
+    return lambda df, dates=dates: df[datecol].dt.tz_localize(None).astype(
         "datetime64[D]").isin(dates)
 
 
-def reduce_matching(df, matchcol, sumcols=None, match=None, fillna=None):
+def reduce_matching(df, matchcol, sumcols, match=None):
+    """ Reduce df by summation over sumcols of rows where matchcol matches
+    values in match. If match is None, reduce on unique values in matchcol.
+    """
+
     mycol = df[matchcol]
-    if fillna is not None:
-        if fillna in mycol.values:
-            print('Warning: found ' + str(fillna) + ' in preexisting values')
-        mycol = mycol.fillna(fillna)
     if match is None:
         match = mycol.unique()
-    if sumcols is None:
-        return match
+    if not isinstance(sumcols, list):
+        sumcols = [sumcols]
     dat = pd.concat([
-        pd.DataFrame(df[mycol == d][sumcols].sum()).transpose() for d in match
+        pd.DataFrame(df[mycol == d if not pd.isna(d)
+                        else mycol.isna()][sumcols].sum()).transpose()
+        for d in match
     ],
                     join="inner",
                     ignore_index=True)
@@ -165,14 +169,12 @@ class SieveTree(Mapping):
 
     def reduce_remainder(self,
                          matchcol,
+                         sumcols,
                          *keys,
-                         sumcols=None,
-                         match=None,
-                         fillna=None):
+                         match=None):
         # Perform reduction on the remainder state of branch at *keys
         sub = self.get_sieve(*keys) if keys else self
-        return reduce_matching(sub.get_data(None), matchcol, sumcols, match,
-                               fillna)
+        return reduce_matching(sub.get_data(None), matchcol, sumcols, match)
 
     def traverse_leaves(self, *keys, from_key=None):
         """ Get depth-first iterator over leaves from branch at *keys starting
