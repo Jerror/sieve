@@ -410,7 +410,7 @@ class Sieve:
 
     def extend(self, filters, *keys, dry_run=False):
         """ Extend self.tree (see SieveTree.extend) in-place if dry_run is
-        False, otherwise just return the table representation (see
+        False, otherwise only print the tree and the table representation (see
         SieveTree.table) of the extension """
 
         if dry_run:
@@ -424,7 +424,7 @@ class Sieve:
 
     def branch(self, filters, *keys, dry_run=False):
         """ Branch self.tree (see SieveTree.branch) in-place if dry_run is
-        False, otherwise just return the table representation (see
+        False, otherwise only print the tree and the table representation (see
         SieveTree.table) of the branch """
 
         if dry_run:
