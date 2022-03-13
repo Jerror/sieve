@@ -497,4 +497,4 @@ class Sieve:
                    filter(lambda k: k is not None, it)))
 
     def __repr__(self):
-        return self.results.__repr__()
+        return self.tree.__repr__() + '\n\n' + self.results.__repr__()
