@@ -239,9 +239,10 @@ class SieveTree(Mapping):
               *keys,
               from_key=None,
               path=None,
-              columns=None,
+              table_columns=None,
               align=True,
-              table_right=None):
+              table_right=None,
+              table_truncate=None):
         """ Return (or write to path) table of tree data in traverse_leaves
         order with data from a given leaf headed by #<keys specifying leaf>.
         Optionally align columns in space-separated format with select columns
@@ -271,9 +272,12 @@ class SieveTree(Mapping):
             R = ''
             if table_right is not None:
                 R = ' -R' + ','.join(table_right) + ' '
+            T = ''
+            if table_truncate is not None:
+                T = ' -T' + ','.join(table_truncate) + ' '
 
             out = subprocess.check_output(
-                "sed '/^#/!s/,/" + sep + "/g' | column -t -d" + N + E + R +
+                "sed '/^#/!s/,/" + sep + "/g' | column -t -d" + N + E + R + T +
                 "-s" + sep + " | sed '/^\\s*$/d' | sed 's/^#\\+/# /'",
                 input=out,
                 shell=True,
