@@ -404,10 +404,10 @@ class Sieve:
         res = self.get_results(*keys[:-1]) if keys[:-1] else self.results
         res[keys[-1]] = self.results.picker().merged()
 
-    def find_keys(self, match):
+    def find_keys(self, *match):
         """ Find all tuples of keys specifying unplucked leaves where the first
         len(match) keys in the tuple are itemwise equal to match """
-        if match is None:
+        if match == (None, ):
             return (None, ) if None in self.tree else tuple()
         it = (k for k, _ in self.tree.traverse_leaves())
         return tuple(
