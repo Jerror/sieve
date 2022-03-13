@@ -202,18 +202,17 @@ class SieveTree(Mapping):
         """ Return depth-first iterator over leaves from branch at *keys starting
         at from_key which traverses branches as encountered and skips leaves
         containing data which is not a non-empty DataFrame. Items are (keys,
-        leaf) pairs where keys is a tuple including the keys of parent
-        branches. """
+        leaf) pairs where keys is a tuple including all parent keys.
+        """
 
         sieve = self.get_node(*keys) if keys else self
         return filter(
             lambda kv: isinstance(kv[1].data, pd.DataFrame) and not kv[1].data.
-            empty, recurse_items(sieve, from_key=from_key))
+            empty, recurse_items(sieve, *keys, from_key=from_key))
 
-    def traverse_data(self, *keys, from_key=None):
+    def traverse_data(self, *keys, **kwargs):
         # Same as traverse_leaves, but items contain leaf data instead of leaf
-        return ((k, v.data)
-                for k, v in self.traverse_leaves(*keys, from_key=None))
+        return ((k, v.data) for k, v in self.traverse_leaves(*keys, **kwargs))
 
     def get_tree(self, *parents):
         # Get ete3 Tree representation of SieveTree structure
@@ -270,8 +269,8 @@ class SieveTree(Mapping):
             return 'No data to tabulate'
 
         if align:
-            # Always right-align the first column to eliminate the padding
-            #  which is a side-effect of the key comments
+            # Always right-align the first column to eliminate the right-padding
+            #  which is a side-effect of the key headers
             ralign = [header[0]]
             if table_right is not None:
                 ralign = ralign + table_right
@@ -283,8 +282,12 @@ class SieveTree(Mapping):
                 T = ' -T' + ','.join(table_truncate) + ' '
 
             out = subprocess.check_output(
+                # format input into aligned space-separated columns
                 "column -t -d" + N + E + R + T + "-s" + sep +
-                " | sed '/^\\s*$/d' | sed 's/^#\\+/# /'",
+                # delete blank lines
+                " | sed '/^\\s*$/d'" +
+                # undo key header padding
+                " | sed 's/^#\\+/# /'",
                 input=out,
                 shell=True,
                 encoding='utf-8')
