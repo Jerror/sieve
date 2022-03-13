@@ -52,6 +52,10 @@ def reduce_matching(df, matchcol, sumcols, match=None):
 
 
 def recurse_items(d, *parents, from_key=None):
+    """ Return depth-first iterator over mapping which traverses nested
+    mappings as encountered. Items are (keys, value) pairs where keys
+    is a tuple including the keys of parent mappings. """
+
     items = d.items()
     if from_key is not None:
         items = it.dropwhile(lambda kv: kv[0] != from_key, items)
@@ -80,8 +84,8 @@ class SieveTree(Mapping):
 
     def __getitem__(self, key):
         # Standard accessor with value typechecking.
-        # Restricting vals to (Leaf, SieveTree) enforces desired tree structure
         val = self.mapping[key]
+        # Restricting vals to (Leaf, SieveTree) enforces desired tree structure
         if not isinstance(val, (Leaf, SieveTree)):
             raise LookupError("Invalid value type " + str(type(val)))
         return val
@@ -177,7 +181,7 @@ class SieveTree(Mapping):
         return reduce_matching(sub.get_data(None), matchcol, sumcols, match)
 
     def traverse_leaves(self, *keys, from_key=None):
-        """ Get depth-first iterator over leaves from branch at *keys starting
+        """ Return depth-first iterator over leaves from branch at *keys starting
         at from_key which traverses branches as encountered and skips leaves
         containing data which is not a non-empty DataFrame. Items are (keys,
         leaf) pairs where keys is a tuple including the keys of parent
@@ -287,6 +291,9 @@ class Picker:
         self.mapping = d
 
     def pick_leaf(self, k, m):
+        """ Put data from a leaf m into mapping at key k. If data exists at
+        key k, concatenates the data. Replaces leaf.data with string
+        self.name+k. """
         if not isinstance(m, Leaf):
             raise RuntimeError('Expected a Leaf')
         if not isinstance(m.data, pd.DataFrame):
@@ -301,10 +308,13 @@ class Picker:
         m.data = self.name + ' ' + str(k)
 
     def pick_leaves(self, pairs):
+        # Pick multiple leaves in one call. For convenience
         for k, m in pairs:
             self.pick_leaf(k, m)
 
     def merged(self):
+        """ Concatenate all data in self.mapping, recursing on nested
+        mappings. """
         if self.mapping:
             _, frames = zip(*recurse_items(self.mapping))
             return pd.concat(frames, axis=0, copy=False)
@@ -313,6 +323,9 @@ class Picker:
 
 
 def pretty_nested_dict_keys(d, indent=0):
+    """ Return a string listing all keys in a Mapping and any
+    sub-Mappings, separated by line breaks with indentation level
+    corresponding to sub-Mapping depth. """
     s = ''
     for key, value in d.items():
         s += '\t' * indent + str(key) + '\n'
@@ -324,6 +337,9 @@ def pretty_nested_dict_keys(d, indent=0):
 class Results(UserDict):
 
     def picker(self, *keys):
+        """ Return a Picker whose mapping is the Results object at
+        self.data[keys[0]][keys[1]]... with name given by concatenation
+        of keys. Nested Results objects are created as necessary. """
         d = self.data
         for k in iter(keys):
             try:
@@ -338,6 +354,7 @@ class Results(UserDict):
 
 
 def varargs_comp(y, *x):
+    # Check if N args *x are equal to the first N items of iterable y
     for yy, xx in zip(y, iter(x)):
         if yy != xx:
             return False
@@ -358,24 +375,38 @@ class Sieve:
         return res[keys[-1]]
 
     def extend(self, filters, *keys):
+        """ Extend self.tree (see SieveTree.extend) and return the table
+        representation (see SieveTree.table) of the extension """
+        # If filters is a generator we want to write out to list so
+        #  we can recall the first key later
         filters = list(filters)
         self.tree.extend(filters, *keys, inplace=True)
         return self.tree.table(*keys, from_key=filters[0][0])
 
     def branch(self, filters, *keys):
+        """ Branch self.tree (see SieveTree.branch) and return the table
+        representation (see SieveTree.table) of the branch """
         self.tree.branch(filters, *keys, inplace=True)
         return self.tree.table(*keys)
 
     def pick(self, pickkeys_list, *reskeys):
+        """ Pluck leaves from self.tree to Results object in self.results at
+        (nested) key(s) *reskeys. Each item in pickkeys_list is a tuple of keys,
+        where the first key names the entry in the Results object and the
+        remaining keys specify a leaf in self.tree. """
         for pickkeys in pickkeys_list:
             self.results.picker(*reskeys).pick_leaf(
                 pickkeys[0], self.tree.get_leaf(*pickkeys[1:]))
 
     def merge(self, *keys):
+        """ Replace Results object at *keys with its recursively concatenated
+        data. """
         res = self.get_results(*keys[:-1]) if keys[:-1] else self.results
         res[keys[-1]] = self.results.picker().merged()
 
     def find_keys(self, match):
+        """ Find all tuples of keys specifying unplucked leaves where the first
+        len(match) keys in the tuple are itemwise equal to match """
         if match is None:
             return (None, ) if None in self.tree else tuple()
         it = (k for k, _ in self.tree.traverse_leaves())
