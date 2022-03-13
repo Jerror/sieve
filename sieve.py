@@ -267,7 +267,7 @@ class SieveTree(Mapping):
             first = False
 
         if first:
-            raise RuntimeError('No data to tabulate')
+            return('No data to tabulate')
 
         if align:
             # Always right-align the first column to eliminate the padding
@@ -283,8 +283,8 @@ class SieveTree(Mapping):
                 T = ' -T' + ','.join(table_truncate) + ' '
 
             out = subprocess.check_output(
-                "sed '/^#/!s/,/" + sep + "/g' | column -t -d" + N + E + R + T +
-                "-s" + sep + " | sed '/^\\s*$/d' | sed 's/^#\\+/# /'",
+                "column -t -d" + N + E + R + T + "-s" + sep +
+                " | sed '/^\\s*$/d' | sed 's/^#\\+/# /'",
                 input=out,
                 shell=True,
                 encoding='utf-8')
