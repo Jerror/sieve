@@ -66,31 +66,36 @@ def recurse_items(d, *parents, from_key=None):
 
 @dataclass
 class Leaf:
+    """ Dataclass for leaves of SieveTree. Contains either a DataFrame which
+    is a partition produced by the SieveTree filter cascade, or a string;
+    in intended usage string data indicates that the partition has been
+    gathered into a Results object by a Picker, and the string names the keys
+    locating the data in the results. """
     data: Union[pd.DataFrame, str]
 
 
 class SieveTree(Mapping):
     """ A Mapping with methods for partitioning a DataFrame via sequences of
     filters and storing each partition mapped to a tuple of keys. Each filter
-    divides a partition into a matching part and a remainder, each of which can
+    divides a partition into a captured part and a remainder, each of which can
     be filtered further. The resulting datastructure is a full binary tree
     whose leaves contain the DataFrame partitions and whose internal nodes
     correspond to the application of a filter. Filters can only be added
     downstream.
 
-    The mental model of the design is that of a stack of sieves, each acting to
-    filter that part of the data which was not captured by the sieve above. A
-    sequence of filters passed to the branch or extend methods each act in turn
-    on that which was *not* captured by the previous filter. The extend method
-    adds more filters to the bottom of a specified stack. The branch method
-    creates a new stack to refine the data which was captured by a specified
-    filter.
+    The mental model of the design is that of a branching stack of sieves,
+    where each sieve in a stack acts to filter that part of the data which
+    was not captured by the sieve above. A sequence of filters passed to the
+    branch or extend methods each act in turn on that which was *not* captured
+    by the previous filter. The extend method adds more filters to the bottom
+    of a specified stack. The branch method creates a new stack to refine the
+    data which was captured by a specified filter.
 
     Each filter in sequence is specified by a (key, action) pair. The keys must
     be unique within a stack. They label the corresponding nodes of the tree
     and are used to access branches and leaves: a position in the tree is given
     by the sequence of keys corresponding to the sequence of filters which
-    captured data en route to the state.The special key None is reserved for
+    captured data en route to the state. The special key None is reserved for
     the data which remains uncaptured at the bottom of a stack. """
 
     def __init__(self, state):
@@ -376,7 +381,7 @@ def pretty_nested_dict_keys(d, indent=0):
 
 
 class Results(UserDict):
-    """ Dictionary for results collected from SieveTree leaves. Used to select
+    """ Dictionary for results collected from SieveTree leaves. Used to select,
     categorize and recombine leaf data. The picker method automatically creates
     nested Results as required and returns an appropriate Picker object. """
 
@@ -414,8 +419,8 @@ class Sieve:
     Picker objects directly. The extend and branch methods modify the tree
     in-place unless kwarg dry_run is true in which case they do not modify
     anything but print the tree and a table showing the would-be effects of the
-    call. A dictionary of kwargs to be passed to tree.table to specify
-    formatting can be provided in initialization."""
+    call. A dictionary of kwargs to be passed to tree.table for formatting can
+    be provided in initialization."""
 
     def __init__(self, state, table_fmt=None):
         self.tree = SieveTree(state)
