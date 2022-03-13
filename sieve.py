@@ -239,6 +239,7 @@ class SieveTree(Mapping):
               *keys,
               from_key=None,
               path=None,
+              columns=None,
               align=True,
               table_right=None):
         """ Return (or write to path) table of tree data in traverse_leaves
@@ -250,17 +251,18 @@ class SieveTree(Mapping):
         out = ''
         first = True
         for k, v in self.traverse_leaves(*keys, from_key=from_key):
+            df = v.data if columns is None else v.data[columns]
             if first:
                 header = [
                     'index' if x is None else x
-                    for x in v.data.index.names + list(v.data.columns)
+                    for x in df.index.names + list(df.columns)
                 ]
                 out += sep.join(header) + '\n'
             if align:
                 # Padding to cheat column -E
                 out += 100 * '#'
             out += '#' + str((k, ))[1:-2] + '\n'
-            out += v.data.to_csv(None, sep=sep, header=False)
+            out += df.to_csv(None, sep=sep, header=False)
             first = False
 
         if align:
