@@ -302,10 +302,10 @@ class SieveTree(Mapping):
         of changing filters 'upstream' by duplicating and modifying the tree
         creation code. """
 
-        with NamedTemporaryFile('w') as f:
+        with NamedTemporaryFile('w', prefix='OTHER_') as f:
             f.write(other.table(*keys, **kwargs))
             f.flush()
-            with NamedTemporaryFile('w') as f2:
+            with NamedTemporaryFile('w', prefix='SELF_') as f2:
                 f2.write(self.table(*keys, **kwargs))
                 f2.flush()
                 diff = subprocess.run('diff --show-function-line="^#" -U ' +
