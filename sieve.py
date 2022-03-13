@@ -267,7 +267,7 @@ class SieveTree(Mapping):
             first = False
 
         if first:
-            return('No data to tabulate')
+            return 'No data to tabulate'
 
         if align:
             # Always right-align the first column to eliminate the padding
@@ -404,7 +404,15 @@ def varargs_comp(y, *x):
 
 class Sieve:
     """ Combines SieveTree, Results and Picker into one simple object intended
-    for practical use. """
+    for practical use. A SieveTree (self.tree) and a corresponding Results
+    (self.results) object are member variables; the pick method conveniently
+    populates results from tree leaves given the keys specifying location
+    in results and the leaves to pick, so it is not necessary to work with
+    Picker objects directly. The extend and branch methods modify the tree
+    in-place unless kwarg dry_run is true in which case they do not modify
+    anything but print the tree and a table showing the would-be effects of the
+    call. A dictionary of kwargs to be passed to tree.table to specify
+    formatting can be provided in initialization."""
 
     def __init__(self, state, table_fmt=None):
         self.tree = SieveTree(state)
