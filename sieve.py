@@ -295,7 +295,7 @@ class SieveTree(Mapping):
             with open(path, 'w') as f:
                 f.write(out)
 
-    def diff(self, other, *keys, context=3, **kwargs):
+    def diff(self, other, *keys, context=0, **kwargs):
         """ Diff the table of this SieveTree with another. context specifies
         the number of lines of context printed about differences.
         This is mainly meant to be used to determine the trickle-down effects
@@ -449,7 +449,7 @@ class Sieve:
                                path=path,
                                **self.table_fmt)
 
-    def diff(self, other, *keys, context=3):
+    def diff(self, other, *keys, context=0):
         return self.tree.diff(other.tree,
                               *keys,
                               context=context,
