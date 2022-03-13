@@ -266,12 +266,18 @@ class SieveTree(Mapping):
             out += df.to_csv(None, sep=sep, header=False)
             first = False
 
+        if first:
+            raise RuntimeError('No data to tabulate')
+
         if align:
+            # Always right-align the first column to eliminate the padding
+            #  which is a side-effect of the key comments
+            ralign = [header[0]]
+            if table_right is not None:
+                ralign = ralign + table_right
             N = ' -N' + ','.join(header) + ' '
             E = ' -E' + ','.join([header[0], header[-1]]) + ' '
-            R = ''
-            if table_right is not None:
-                R = ' -R' + ','.join(table_right) + ' '
+            R = ' -R' + ','.join(ralign) + ' '
             T = ''
             if table_truncate is not None:
                 T = ' -T' + ','.join(table_truncate) + ' '
