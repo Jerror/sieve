@@ -394,15 +394,12 @@ def varargs_comp(y, *x):
 
 class Sieve:
     """ Combines SieveTree, Results and Picker into one simple object intended
-    for practical use. Holds SieveTree (self.tree) and corresponding Results
-    (self.results) member objects. The extend and branch methods are similar to
-    SieveTree's but return tables of the modified data to facilitate
-    interactive tree construction. The pick method populates results from tree
-    leaves. """
+    for practical use. """
 
-    def __init__(self, state):
+    def __init__(self, state, table_fmt=None):
         self.tree = SieveTree(state)
         self.results = Results()
+        self.table_fmt = {} if table_fmt is None else table_fmt
 
     def get_results(self, *keys):
         # Convenient nested access
@@ -411,29 +408,51 @@ class Sieve:
             res = res[k]
         return res[keys[-1]]
 
-    def extend(self, filters, *keys):
-        """ Extend self.tree (see SieveTree.extend) and return the table
-        representation (see SieveTree.table) of the extension """
-        # If filters is a generator we want to write out to list so
-        #  we can recall the first key later
-        filters = list(filters)
-        self.tree.extend(filters, *keys, inplace=True)
-        return self.tree.table(*keys, from_key=filters[0][0])
+    def extend(self, filters, *keys, dry_run=False):
+        """ Extend self.tree (see SieveTree.extend) in-place if dry_run is
+        False, otherwise just return the table representation (see
+        SieveTree.table) of the extension """
 
-    def branch(self, filters, *keys):
-        """ Branch self.tree (see SieveTree.branch) and return the table
-        representation (see SieveTree.table) of the branch """
-        self.tree.branch(filters, *keys, inplace=True)
-        return self.tree.table(*keys)
+        if dry_run:
+            filters = list(filters)
+            tree = self.tree.extend(filters, *keys, inplace=False)
+            print(
+                str(tree) + '\n\n' +
+                tree.table(*keys, from_key=filters[0][0], **self.table_fmt))
+        else:
+            self.tree.extend(filters, *keys, inplace=True)
+
+    def branch(self, filters, *keys, dry_run=False):
+        """ Branch self.tree (see SieveTree.branch) in-place if dry_run is
+        False, otherwise just return the table representation (see
+        SieveTree.table) of the branch """
+
+        if dry_run:
+            tree = self.tree.branch(filters, *keys, inplace=False)
+            print(str(tree) + '\n\n' + tree.table(*keys, **self.table_fmt))
+        else:
+            self.tree.branch(filters, *keys, inplace=True)
+
+    def table(self, *keys, from_key=None, path=None):
+        return self.tree.table(*keys,
+                               from_key=from_key,
+                               path=path,
+                               **self.table_fmt)
+
+    def diff(self, other, *keys, context=3):
+        return self.tree.diff(other.tree,
+                              *keys,
+                              context=context,
+                              **self.table_fmt)
 
     def pick(self, pickkeys_list, *reskeys):
         """ Pluck leaves from self.tree to Results object in self.results at
         (nested) key(s) *reskeys. Each item in pickkeys_list is a tuple of keys,
         where the first key names the entry in the Results object and the
         remaining keys specify a leaf in self.tree. """
+        picker = self.results.picker(*reskeys)
         for pickkeys in pickkeys_list:
-            self.results.picker(*reskeys).pick_leaf(
-                pickkeys[0], self.tree.get_leaf(*pickkeys[1:]))
+            picker.pick_leaf(pickkeys[0], self.tree.get_leaf(*pickkeys[1:]))
 
     def merge(self, *keys):
         """ Replace Results object at *keys with its recursively concatenated
