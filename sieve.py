@@ -11,7 +11,6 @@ from numpy import ndarray
 import pandas as pd
 from ete3 import Tree
 
-
 # These types may contain valid "boolean vectors" for Pandas Series indexing
 pandas_vec_types = (list, ndarray, pd.core.arrays.ExtensionArray, pd.Series,
                     pd.Index)
@@ -40,9 +39,8 @@ def reduce_matching(df, matchcol, sumcols, match=None):
     if not isinstance(sumcols, list):
         sumcols = [sumcols]
     dat = pd.concat([
-        pd.DataFrame(df[mycol == d if not pd.isna(d)
-                        else mycol.isna()][sumcols].sum()).transpose()
-        for d in match
+        pd.DataFrame(df[mycol == d if not pd.isna(d) else mycol.isna()]
+                     [sumcols].sum()).transpose() for d in match
     ],
                     join="inner",
                     ignore_index=True)
@@ -169,11 +167,13 @@ class SieveTree(Mapping):
                 elif isinstance(f, str):
                     mask = state.eval(f)
                 else:
-                    raise TypeError("Expected Callable or string filter, got "
-                                    + str(type(f)))
+                    raise TypeError(
+                        "Expected Callable or string filter, got " +
+                        str(type(f)))
                 if not isinstance(mask, pandas_vec_types):
-                    raise TypeError("Filter must return a boolean vector, got "
-                                    + str(type(mask)))
+                    raise TypeError(
+                        "Filter must return a boolean vector, got " +
+                        str(type(mask)))
                 if mask.any():
                     sub.mapping[k] = Leaf(state[mask])
                     state = state[~mask]
@@ -193,11 +193,7 @@ class SieveTree(Mapping):
         if not inplace:
             return sieve
 
-    def reduce_remainder(self,
-                         matchcol,
-                         sumcols,
-                         *keys,
-                         match=None):
+    def reduce_remainder(self, matchcol, sumcols, *keys, match=None):
         # Perform reduction on the remainder state of branch at *keys
         sub = self.get_sieve(*keys) if keys else self
         return reduce_matching(sub.get_data(None), matchcol, sumcols, match)
@@ -239,7 +235,12 @@ class SieveTree(Mapping):
         # ASCII representation of SieveTree structure
         return self.get_tree().get_ascii(show_internal=True)
 
-    def table(self, *keys, from_key=None, path=None, align=True, table_right=None):
+    def table(self,
+              *keys,
+              from_key=None,
+              path=None,
+              align=True,
+              table_right=None):
         """ Return (or write to path) table of tree data in traverse_leaves
         order with data from a given leaf headed by #<keys specifying leaf>.
         Optionally align columns in space-separated format with select columns
