@@ -239,7 +239,7 @@ class SieveTree(Mapping):
               *keys,
               from_key=None,
               path=None,
-              table_columns=None,
+              columns=None,
               align=True,
               table_right=None,
               table_truncate=None):
