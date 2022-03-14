@@ -28,7 +28,7 @@ def fun_date_isin(datecol, dates):
         "datetime64[D]").isin(dates)
 
 
-def reduce_matching(df, matchcol, sumcols, match=None):
+def reduce_matching(df, matchcol, sumcols=None, match=None):
     """ Reduce df by summation over sumcols of rows where matchcol matches
     values in match. If match is None, reduce on unique values in matchcol.
     """
@@ -36,17 +36,22 @@ def reduce_matching(df, matchcol, sumcols, match=None):
     mycol = df[matchcol]
     if match is None:
         match = mycol.unique()
-    if not isinstance(sumcols, list):
+    if sumcols is not None and not isinstance(sumcols, list):
         sumcols = [sumcols]
-    dat = pd.concat([
-        pd.DataFrame(df[mycol == d if not pd.isna(d) else mycol.isna()]
-                     [sumcols].sum()).transpose() for d in match
-    ],
-                    join="inner",
-                    ignore_index=True)
-    dat.insert(len(sumcols), matchcol, match)
-    dat.sort_values(by=sumcols, ascending=False, inplace=True)
-    return dat
+
+    rows = []
+    for d in match:
+        matching = df[mycol == d if not pd.isna(d) else mycol.isna()]
+        if sumcols is not None:
+            row = pd.DataFrame(matching[sumcols].sum()).transpose()
+            row.insert(0, 'Count', len(matching))
+        else:
+            row = pd.DataFrame({'Count': [len(matching)]})
+        rows.append(row)
+
+    dat = pd.concat(rows, join="inner", ignore_index=True)
+    dat.insert(0, matchcol, match)
+    return dat.sort_values(by='Count', ascending=False).reset_index(drop=True)
 
 
 def recurse_items(d, *parents, from_key=None):
@@ -198,10 +203,13 @@ class SieveTree(Mapping):
         if not inplace:
             return sieve
 
-    def reduce_remainder(self, matchcol, sumcols, *keys, match=None):
+    def reduce_remainder(self, matchcol, *keys, sumcols=None, match=None):
         # Perform reduction on the remainder state of branch at *keys
         sub = self.get_sieve(*keys) if keys else self
-        return reduce_matching(sub.get_data(None), matchcol, sumcols, match)
+        return reduce_matching(sub.get_data(None),
+                               matchcol,
+                               sumcols=sumcols,
+                               match=match)
 
     def traverse_leaves(self, *keys, from_key=None):
         """ Return depth-first iterator over leaves from branch at *keys starting
