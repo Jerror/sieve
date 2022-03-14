@@ -18,13 +18,21 @@ pandas_vec_types = (list, ndarray, pd.core.arrays.ExtensionArray, pd.Series,
 
 
 def fun_contains_str(col, patt, **kwargs):
-    # Return callback for pandas.Series.str.contains filtering
-    return lambda df, patt=patt, kwargs=kwargs: df[col].str.contains(
+    """ Return callback for pandas.Series.str.contains filtering"""
+
+    # Some default kwargs which I use often
+    myargs = {'na': False}
+    if not isinstance(patt, re.Pattern):
+        myargs.update({'case': False})
+    # **kwargs can overwrite the defaults
+    myargs.update(kwargs)
+    return lambda df, patt=patt, kwargs=myargs: df[col].str.contains(
         patt, **kwargs)
 
 
 def fun_date_isin(datecol, dates):
-    # Return callback for date filtering
+    """ Return callback for filtering a list of dates in datecol """
+
     return lambda df, dates=dates: df[datecol].dt.tz_localize(None).astype(
         "datetime64[D]").isin(dates)
 
@@ -102,7 +110,12 @@ class SieveTree(Mapping):
     and are used to access branches and leaves: a position in the tree is given
     by the sequence of keys corresponding to the sequence of filters which
     captured data en route to the state. The special key None is reserved for
-    the data which remains uncaptured at the bottom of a stack. """
+    the data which remains uncaptured at the bottom of a stack.
+
+    The data contained in a leaf can be either a DataFrame partition or a string.
+    If data is a string the leaf is passed over in tree traversal. Typically
+    string data means that the partition was moved to some mapping via Picker,
+    and the string names the location of the partition in the mapping."""
 
     def __init__(self, state):
         self.mapping = {None: Leaf(state)}
