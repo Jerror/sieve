@@ -422,13 +422,13 @@ class Sieve:
     """ Combines SieveTree, Results and Picker into one simple object intended
     for practical use. A SieveTree (self.tree) and a corresponding Results
     (self.results) object are member variables; the pick method conveniently
-    populates results from tree leaves given the keys specifying location
-    in results and the leaves to pick, so it is not necessary to work with
-    Picker objects directly. The extend and branch methods modify the tree
-    in-place unless kwarg dry_run is true in which case they do not modify
-    anything but print the tree and a table showing the would-be effects of the
-    call. A dictionary of kwargs to be passed to tree.table for formatting can
-    be provided in initialization."""
+    populates results from tree leaves given the keys specifying location in
+    results and the leaves to pick, so it is not necessary to work with Picker
+    objects directly. The extend and branch methods modify the tree in-place
+    unless kwarg dry_run is true in which case they do not modify anything but
+    print the tree and a table showing the would-be effects of the call. A
+    dictionary of kwargs for tree.table formatting can be provided in
+    initialization."""
 
     def __init__(self, state, table_fmt=None):
         self.tree = SieveTree(state)
