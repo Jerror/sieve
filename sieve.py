@@ -451,7 +451,7 @@ class Sieve:
         data. """
 
         res = self.get_results(*keys[:-1]) if keys[:-1] else self.results
-        res[keys[-1]] = self.results.picker().merged()
+        res[keys[-1]] = res[keys[-1]].picker().merged()
 
     def __repr__(self):
         return self.tree.__repr__() + '\n\n' + self.results.__repr__()
