@@ -26,14 +26,14 @@ def fun_contains_str(col, patt, **kwargs):
         myargs.update({'case': False})
     # **kwargs can overwrite the defaults
     myargs.update(kwargs)
-    return lambda df, patt=patt, kwargs=myargs: df[col].str.contains(
-        patt, **kwargs)
+    return lambda df: df[col].str.contains(
+        patt, **myargs)
 
 
 def fun_date_isin(datecol, dates):
     """ Return callback for filtering a list of dates in datecol """
 
-    return lambda df, dates=dates: df[datecol].dt.tz_localize(None).astype(
+    return lambda df: df[datecol].dt.tz_localize(None).astype(
         "datetime64[D]").isin(dates)
 
 
