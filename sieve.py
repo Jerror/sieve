@@ -204,14 +204,6 @@ class SieveTree(Mapping):
         if not inplace:
             return sieve
 
-    def reduce_remainder(self, matchcol, *keys, sumcols=None, match=None):
-        # Perform reduction on the remainder state of branch at *keys
-        sub = self.get_sieve(*keys) if keys else self
-        return reduce_matching(sub.get_data(None),
-                               matchcol,
-                               sumcols=sumcols,
-                               match=match)
-
     def traverse_leaves(self, *keys, from_key=None):
         """ Return depth-first iterator over leaves from branch at *keys starting
         at from_key which traverses branches as encountered and skips leaves
@@ -249,10 +241,17 @@ class SieveTree(Mapping):
         return self.get_tree().get_ascii(show_internal=True)
 
     def dataframe(self, *keys, from_key=None):
+        """ Return a DataFrame combining all data in tree beneath specified
+        node with multiindex specifying data leaf keys. """
+
         ks, dfs = zip(*self.traverse_data(*keys, from_key=from_key))
         return pd.concat(dfs, keys=(str((k, ))[1:-2] for k in ks))
 
     def table(self, *keys, from_key=None, path=None, **kwargs):
+        """ Return (or write to path) table of tree data in traverse_leaves
+        order with data from a given leaf headed by #<keys specifying leaf>.
+        """
+
         ks, dfs = zip(*self.traverse_data(*keys, from_key=from_key))
         combined_df = pd.concat(
             dfs, keys=['# ' + str((k, ))[1:-2] + '\xFE' for k in ks])
@@ -277,7 +276,9 @@ class SieveTree(Mapping):
         the number of lines of context printed about differences.
         This is mainly meant to be used to determine the trickle-down effects
         of changing filters 'upstream' by duplicating and modifying the tree
-        creation code. """
+        creation code.
+        The system diff utility is used instead of difflib because the latter
+        lacks the functionality of --show-function-line. """
 
         with NamedTemporaryFile('w', prefix='OTHER_') as f:
             f.write(other.table(*keys, **kwargs))
@@ -309,6 +310,7 @@ class Picker:
         """ Put data from a leaf m into mapping at key k. If data exists at
         key k, concatenates the data. Replaces leaf.data with string
         self.name+k. """
+
         if not isinstance(m, Leaf):
             raise RuntimeError('Expected a Leaf')
         if not isinstance(m.data, pd.DataFrame):
@@ -330,6 +332,7 @@ class Picker:
     def merged(self):
         """ Concatenate all data in self.mapping, recursing on nested
         mappings. """
+
         if self.mapping:
             _, frames = zip(*recurse_items(self.mapping))
             return pd.concat(frames, axis=0, copy=False)
@@ -358,6 +361,7 @@ class Results(UserDict):
         """ Return a Picker whose mapping is the Results object at
         self.data[keys[0]][keys[1]]... with name given by concatenation
         of keys. Nested Results objects are created as necessary. """
+
         d = self.data
         for k in iter(keys):
             try:
@@ -430,6 +434,7 @@ class Sieve:
         (nested) key(s) *reskeys. Each item in pickkeys_list is a tuple of keys,
         where the first key names the entry in the Results object and the
         remaining keys specify a leaf in self.tree. """
+
         picker = self.results.picker(*reskeys)
         for pickkeys in pickkeys_list:
             picker.pick_leaf(pickkeys[0], self.tree.get_leaf(*pickkeys[1:]))
@@ -437,12 +442,14 @@ class Sieve:
     def merge(self, *keys):
         """ Replace Results object at *keys with its recursively concatenated
         data. """
+
         res = self.get_results(*keys[:-1]) if keys[:-1] else self.results
         res[keys[-1]] = self.results.picker().merged()
 
     def find_keys(self, *match):
         """ Find all tuples of keys specifying unplucked leaves where the first
         len(match) keys in the tuple are itemwise equal to match """
+
         if match == (None, ):
             return (None, ) if None in self.tree else tuple()
         it = (k for k, _ in self.tree.traverse_leaves())
