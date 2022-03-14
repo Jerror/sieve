@@ -1,3 +1,4 @@
+import re
 import copy
 import itertools as it
 import subprocess
@@ -247,69 +248,29 @@ class SieveTree(Mapping):
         # ASCII representation of SieveTree structure
         return self.get_tree().get_ascii(show_internal=True)
 
-    def table(self,
-              *keys,
-              from_key=None,
-              path=None,
-              columns=None,
-              align=True,
-              table_right=None,
-              table_truncate=None):
-        """ Return (or write to path) table of tree data in traverse_leaves
-        order with data from a given leaf headed by #<keys specifying leaf>.
-        Optionally align columns in space-separated format with select columns
-        right-aligned. """
+    def dataframe(self, *keys, from_key=None):
+        ks, dfs = zip(*self.traverse_data(*keys, from_key=from_key))
+        return pd.concat(dfs, keys=(str((k, ))[1:-2] for k in ks))
 
-        sep = "\xFE" if align else ","
-        out = ''
-        first = True
-        for k, v in self.traverse_leaves(*keys, from_key=from_key):
-            df = v.data if columns is None else v.data[columns]
-            if first:
-                header = [
-                    'index' if x is None else x
-                    for x in df.index.names + list(df.columns)
-                ]
-                out += sep.join(header) + '\n'
-            if align:
-                # Padding to cheat column -E
-                out += 100 * '#'
-            out += '#' + str((k, ))[1:-2] + '\n'
-            out += df.to_csv(None, sep=sep, header=False)
-            first = False
-
-        if first:
-            return 'No data to tabulate'
-
-        if align:
-            # Always right-align the first column to eliminate the right-padding
-            #  which is a side-effect of the key headers
-            ralign = [header[0]]
-            if table_right is not None:
-                ralign = ralign + table_right
-            N = ' -N' + ','.join(header) + ' '
-            E = ' -E' + ','.join([header[0], header[-1]]) + ' '
-            R = ' -R' + ','.join(ralign) + ' '
-            T = ''
-            if table_truncate is not None:
-                T = ' -T' + ','.join(table_truncate) + ' '
-
-            out = subprocess.check_output(
-                # format input into aligned space-separated columns
-                "column -t -d" + N + E + R + T + "-s" + sep +
-                # delete blank lines
-                " | sed '/^\\s*$/d'" +
-                # undo key header padding
-                " | sed 's/^#\\+/# /'",
-                input=out,
-                shell=True,
-                encoding='utf-8')
+    def table(self, *keys, from_key=None, path=None, **kwargs):
+        ks, dfs = zip(*self.traverse_data(*keys, from_key=from_key))
+        combined_df = pd.concat(
+            dfs, keys=['# ' + str((k, ))[1:-2] + '\xFE' for k in ks])
+        table = combined_df.to_string(**kwargs)
+        # Put keys on their own line
+        table = table.replace('\xFE', '\n')
+        table_width = len(table.splitlines()[-1])
+        # Remove leading whitespace from rows
+        table = re.sub('\n\\s+', '\n', table)
+        delta = table_width - len(table.splitlines()[-1])
+        # Realign header
+        table = table[delta:]
 
         if path is None:
-            return out
+            return table
         else:
             with open(path, 'w') as f:
-                f.write(out)
+                f.write(table)
 
     def diff(self, other, *keys, context=0, **kwargs):
         """ Diff the table of this SieveTree with another. context specifies
@@ -430,10 +391,9 @@ class Sieve:
     dictionary of kwargs for tree.table formatting can be provided in
     initialization."""
 
-    def __init__(self, state, table_fmt=None):
+    def __init__(self, state):
         self.tree = SieveTree(state)
         self.results = Results()
-        self.table_fmt = {} if table_fmt is None else table_fmt
 
     def get_results(self, *keys):
         # Convenient nested access
@@ -444,40 +404,26 @@ class Sieve:
 
     def extend(self, filters, *keys, dry_run=False):
         """ Extend self.tree (see SieveTree.extend) in-place if dry_run is
-        False, otherwise only print the tree and the table representation (see
-        SieveTree.table) of the extension """
+        False, otherwise return a DataFrame describing the extension that
+        would have been created. """
 
         if dry_run:
             filters = list(filters)
             tree = self.tree.extend(filters, *keys, inplace=False)
-            print(
-                str(tree) + '\n\n' +
-                tree.table(*keys, from_key=filters[0][0], **self.table_fmt))
+            return tree.dataframe(*keys, from_key=filters[0][0])
         else:
             self.tree.extend(filters, *keys, inplace=True)
 
     def branch(self, filters, *keys, dry_run=False):
         """ Branch self.tree (see SieveTree.branch) in-place if dry_run is
-        False, otherwise only print the tree and the table representation (see
-        SieveTree.table) of the branch """
+        False, otherwise return a DataFrame describing the branch that would
+        have been created. """
 
         if dry_run:
             tree = self.tree.branch(filters, *keys, inplace=False)
-            print(str(tree) + '\n\n' + tree.table(*keys, **self.table_fmt))
+            return tree.dataframe(*keys)
         else:
             self.tree.branch(filters, *keys, inplace=True)
-
-    def table(self, *keys, from_key=None, path=None):
-        return self.tree.table(*keys,
-                               from_key=from_key,
-                               path=path,
-                               **self.table_fmt)
-
-    def diff(self, other, *keys, context=0):
-        return self.tree.diff(other.tree,
-                              *keys,
-                              context=context,
-                              **self.table_fmt)
 
     def pick(self, pickkeys_list, *reskeys):
         """ Pluck leaves from self.tree to Results object in self.results at
