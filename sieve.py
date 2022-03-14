@@ -197,7 +197,7 @@ class SieveTree(Mapping):
         *keys and extend with filters. """
 
         sieve = self if inplace else copy.deepcopy(self)
-        sub = sieve.get_sieve(keys[:-1]) if keys[:-1] else sieve
+        sub = sieve.get_sieve(*keys[:-1]) if keys[:-1] else sieve
 
         sub.mapping[keys[-1]] = SieveTree(sub.get_data(keys[-1])).extend(
             filters, inplace=False)
