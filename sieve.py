@@ -74,7 +74,7 @@ def recurse_items(d, *parents, from_key=None):
         if isinstance(m, Mapping):
             yield from recurse_items(m, *parents, k)
         else:
-            yield (k, m) if len(parents) == 0 else ((*parents, k), m)
+            yield ((*parents, k), m)
 
 
 @dataclass
@@ -265,7 +265,7 @@ class SieveTree(Mapping):
         node with multiindex specifying data leaf keys. """
 
         ks, dfs = zip(*self.traverse_data(*keys, from_key=from_key))
-        return pd.concat(dfs, keys=(str((k, ))[1:-2] for k in ks))
+        return pd.concat(dfs, keys=(str(k) for k in ks))
 
     def table(self, *keys, from_key=None, path=None, **kwargs):
         """ Return (or write to path) table of tree data in traverse_leaves
@@ -274,7 +274,7 @@ class SieveTree(Mapping):
 
         ks, dfs = zip(*self.traverse_data(*keys, from_key=from_key))
         combined_df = pd.concat(
-            dfs, keys=['# ' + str((k, ))[1:-2] + '\xFE' for k in ks])
+            dfs, keys=['# ' + str(k) + '\xFE' for k in ks])
         table = combined_df.to_string(**kwargs)
         # Put keys on their own line
         table = table.replace('\xFE', '\n')
