@@ -26,15 +26,14 @@ def fun_contains_str(col, patt, **kwargs):
         myargs.update({'case': False})
     # **kwargs can overwrite the defaults
     myargs.update(kwargs)
-    return lambda df: df[col].str.contains(
-        patt, **myargs)
+    return lambda df: df[col].str.contains(patt, **myargs)
 
 
 def fun_date_isin(datecol, dates):
     """ Return callback for filtering a list of dates in datecol """
 
-    return lambda df: df[datecol].dt.tz_localize(None).astype(
-        "datetime64[D]").isin(dates)
+    return lambda df: df[datecol].dt.tz_localize(None).astype("datetime64[D]"
+                                                              ).isin(dates)
 
 
 def reduce_matching(df, matchcol, sumcols=None, match=None):
@@ -224,14 +223,22 @@ class SieveTree(Mapping):
         leaf) pairs where keys is a tuple including all parent keys.
         """
 
-        sieve = self.get_node(*keys) if keys else self
+        node = self.get_node(*keys) if keys else self
+        if isinstance(node, Leaf):
+            items = [(keys, node)]
+        else:
+            items = recurse_items(node, *keys, from_key=from_key)
         return filter(
             lambda kv: isinstance(kv[1].data, pd.DataFrame) and not kv[1].data.
-            empty, recurse_items(sieve, *keys, from_key=from_key))
+            empty, items)
 
     def traverse_data(self, *keys, **kwargs):
         # Same as traverse_leaves, but items contain leaf data instead of leaf
         return ((k, v.data) for k, v in self.traverse_leaves(*keys, **kwargs))
+
+    def traverse_keys(self, *keys, **kwargs):
+        # Same as traverse_leaves but items only contain the keys
+        return (k for k, _ in self.traverse_leaves(*keys, **kwargs))
 
     def get_tree(self, *parents):
         # Get ete3 Tree representation of SieveTree structure
@@ -383,14 +390,6 @@ class Results(UserDict):
         return pretty_nested_dict_keys(self.data)
 
 
-def varargs_comp(y, *x):
-    # Check if N args *x are equal to the first N items of iterable y
-    for yy, xx in zip(y, iter(x)):
-        if yy != xx:
-            return False
-    return True
-
-
 class Sieve:
     """ Combines SieveTree, Results and Picker into one simple object intended
     for practical use. A SieveTree (self.tree) and a corresponding Results
@@ -453,17 +452,6 @@ class Sieve:
 
         res = self.get_results(*keys[:-1]) if keys[:-1] else self.results
         res[keys[-1]] = self.results.picker().merged()
-
-    def find_keys(self, *match):
-        """ Find all tuples of keys specifying unplucked leaves where the first
-        len(match) keys in the tuple are itemwise equal to match """
-
-        if match == (None, ):
-            return (None, ) if None in self.tree else tuple()
-        it = (k for k, _ in self.tree.traverse_leaves())
-        return tuple(
-            filter(lambda k: varargs_comp(match, *k),
-                   filter(lambda k: k is not None, it)))
 
     def __repr__(self):
         return self.tree.__repr__() + '\n\n' + self.results.__repr__()
