@@ -386,6 +386,33 @@ class Results(UserDict):
                 d = d[k]
         return Picker(' '.join((str(k) for k in keys)), d)
 
+    def get(self, *keys):
+        # Convenient nested access
+        res = self
+        for k in iter(keys[:-1]):
+            res = res[k]
+        return res[keys[-1]]
+
+    def traverse_data(self, *keys, from_key=None):
+        """ Return iterator over (keys, df) pairs in top-down order
+        starting from from_key in Results at *keys. """
+
+        val = self.get(*keys) if keys else self
+        if not isinstance(val, Results):
+            items = [(keys, val)]
+        else:
+            items = recurse_items(val, *keys, from_key=from_key)
+        return filter(
+            lambda kv: isinstance(kv[1], pd.DataFrame) and not kv[1].empty,
+            items)
+
+    def dataframe(self, *keys, from_key=None):
+        """ Return a DataFrame combining all data in Results beneath specified
+        item with multiindex specifying keys. """
+
+        ks, dfs = zip(*self.traverse_data(*keys, from_key=from_key))
+        return pd.concat(dfs, keys=(str((k, ))[1:-2] for k in ks))
+
     def __repr__(self):
         return pretty_nested_dict_keys(self.data)
 
@@ -405,13 +432,6 @@ class Sieve:
     def __init__(self, state):
         self.tree = SieveTree(state)
         self.results = Results()
-
-    def get_results(self, *keys):
-        # Convenient nested access
-        res = self.results
-        for k in iter(keys[:-1]):
-            res = res[k]
-        return res[keys[-1]]
 
     def extend(self, filters, *keys, dry_run=False):
         """ Extend self.tree (see SieveTree.extend) in-place if dry_run is
