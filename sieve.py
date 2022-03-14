@@ -324,11 +324,6 @@ class Picker:
             self.mapping[k] = m.data
         m.data = self.name + ' ' + str(k)
 
-    def pick_leaves(self, pairs):
-        # Pick multiple leaves in one call. For convenience
-        for k, m in pairs:
-            self.pick_leaf(k, m)
-
     def merged(self):
         """ Concatenate all data in self.mapping, recursing on nested
         mappings. """
