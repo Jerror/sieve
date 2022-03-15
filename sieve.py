@@ -420,7 +420,7 @@ class Results(UserDict):
 
     def dataframe(self, *keys, from_key=None):
         """ Return a DataFrame combining all data in Results beneath specified
-        node with multiindex specifying data leaf keys. """
+        node with multiindex specifying the data's sequence of keys. """
 
         return pd.concat({
             str(k): d
@@ -428,9 +428,8 @@ class Results(UserDict):
         })
 
     def table(self, *keys, from_key=None, **kwargs):
-        """ Return table of tree data in traverse_leaves
-        order with data from a given leaf headed by #<keys specifying leaf>.
-        """
+        """ Return table of data in traverse_data order with each block of data
+        headed by #<keys locating data>. """
 
         return table(self.traverse_data(*keys, from_key=from_key), **kwargs)
 
@@ -458,11 +457,10 @@ class Sieve:
     (self.results) object are member variables; the pick method conveniently
     populates results from tree leaves given the keys specifying location in
     results and the leaves to pick, so it is not necessary to work with Picker
-    objects directly. The extend and branch methods modify the tree in-place
-    unless kwarg dry_run is true in which case they do not modify anything but
-    print the tree and a table showing the would-be effects of the call. A
-    dictionary of kwargs for tree.table formatting can be provided in
-    initialization."""
+    objects directly. The extend and branch methods modify the tree in-place.
+    Methods extend, branch and pick each take a dry_run argument; if true then
+    data is not modified and a DataFrame describing the additions that would
+    have been made is returned. """
 
     def __init__(self, state):
         self.tree = SieveTree(state)
