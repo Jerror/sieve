@@ -499,14 +499,14 @@ class Sieve:
 
         if dry_run:
             return pd.concat({
-                str((*reskeys, pk[0])): self.tree.get_data(*pk[1:])
+                str((*reskeys, pk[0])): self.tree.get_data(*pk[1])
                 for pk in pickkeys_list
             })
         else:
             picker = self.results.picker(*reskeys)
             for pickkeys in pickkeys_list:
                 picker.pick_leaf(pickkeys[0],
-                                 self.tree.get_leaf(*pickkeys[1:]))
+                                 self.tree.get_leaf(*pickkeys[1]))
 
     def merge(self, *keys):
         """ Replace Results object at *keys with its recursively concatenated
