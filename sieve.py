@@ -491,15 +491,24 @@ class Sieve:
         else:
             self.tree.branch(filters, *keys, inplace=True)
 
-    def pick(self, pickkeys_list, *reskeys):
+    def pick(self, pickkeys_list, *reskeys, dry_run=False):
         """ Pluck leaves from self.tree to Results object in self.results at
         (nested) key(s) *reskeys. Each item in pickkeys_list is a tuple of keys,
         where the first key names the entry in the Results object and the
-        remaining keys specify a leaf in self.tree. """
+        remaining keys specify a leaf in self.tree. If dry_run is True instead
+        return a DataFrame of data that would have been picked with index naming
+        the intended location in results. """
 
-        picker = self.results.picker(*reskeys)
-        for pickkeys in pickkeys_list:
-            picker.pick_leaf(pickkeys[0], self.tree.get_leaf(*pickkeys[1:]))
+        if dry_run:
+            return pd.concat({
+                ' '.join((*reskeys, pk[0])): self.tree.get_data(*pk[1:])
+                for pk in pickkeys_list
+            })
+        else:
+            picker = self.results.picker(*reskeys)
+            for pickkeys in pickkeys_list:
+                picker.pick_leaf(pickkeys[0],
+                                 self.tree.get_leaf(*pickkeys[1:]))
 
     def merge(self, *keys):
         """ Replace Results object at *keys with its recursively concatenated
