@@ -77,6 +77,44 @@ def recurse_items(d, *parents, from_key=None):
             yield ((*parents, k), m)
 
 
+def table(objs, **kwargs):
+    """ Return table of dataframes with data from each
+    frame headed by #<keys specifying leaf>.
+    """
+
+    combined_df = pd.concat({'# ' + str(k) + '\xFE': df for k, df in objs})
+    table = combined_df.to_string(**kwargs)
+    # Put keys on their own line
+    table = table.replace('\xFE', '\n')
+    table_width = len(table.splitlines()[-1])
+    # Remove leading whitespace from rows
+    table = re.sub('\n\\s+', '\n', table)
+    delta = table_width - len(table.splitlines()[-1])
+    # Realign header
+    table = table[delta:]
+    return table
+
+
+def diff(table1, table2, context=0):
+    """ Return the unified difference of two tables. context specifies
+    the number of lines of context printed about differences.
+    The system diff utility is used instead of difflib because the latter
+    lacks the functionality of --show-function-line, which we use here
+    to highlight under which '# <heading>' a diff occurred. """
+
+    with NamedTemporaryFile('w', prefix='TABLE2_') as f:
+        f.write(table2)
+        f.flush()
+        with NamedTemporaryFile('w', prefix='TABLE1_') as f2:
+            f2.write(table1)
+            f2.flush()
+            diff = subprocess.run('diff --show-function-line="^#" -U ' +
+                                  str(context) + ' ' + f.name + ' ' + f2.name,
+                                  shell=True,
+                                  stdout=subprocess.PIPE).stdout
+    return diff.decode()
+
+
 @dataclass
 class Leaf:
     """ Dataclass for leaves of SieveTree. Contains either a DataFrame which
@@ -264,54 +302,28 @@ class SieveTree(Mapping):
         """ Return a DataFrame combining all data in tree beneath specified
         node with multiindex specifying data leaf keys. """
 
-        ks, dfs = zip(*self.traverse_data(*keys, from_key=from_key))
-        return pd.concat(dfs, keys=(str(k) for k in ks))
+        return pd.concat({
+            str(k): d
+            for k, d in self.traverse_data(*keys, from_key=from_key)
+        })
 
-    def table(self, *keys, from_key=None, path=None, **kwargs):
-        """ Return (or write to path) table of tree data in traverse_leaves
+    def table(self, *keys, from_key=None, **kwargs):
+        """ Return table of tree data in traverse_leaves
         order with data from a given leaf headed by #<keys specifying leaf>.
         """
 
-        ks, dfs = zip(*self.traverse_data(*keys, from_key=from_key))
-        combined_df = pd.concat(
-            dfs, keys=['# ' + str(k) + '\xFE' for k in ks])
-        table = combined_df.to_string(**kwargs)
-        # Put keys on their own line
-        table = table.replace('\xFE', '\n')
-        table_width = len(table.splitlines()[-1])
-        # Remove leading whitespace from rows
-        table = re.sub('\n\\s+', '\n', table)
-        delta = table_width - len(table.splitlines()[-1])
-        # Realign header
-        table = table[delta:]
-
-        if path is None:
-            return table
-        else:
-            with open(path, 'w') as f:
-                f.write(table)
+        return table(self.traverse_data(*keys, from_key=from_key), **kwargs)
 
     def diff(self, other, *keys, context=0, **kwargs):
         """ Diff the table of this SieveTree with another. context specifies
         the number of lines of context printed about differences.
         This is mainly meant to be used to determine the trickle-down effects
         of changing filters 'upstream' by duplicating and modifying the tree
-        creation code.
-        The system diff utility is used instead of difflib because the latter
-        lacks the functionality of --show-function-line. """
+        creation code. """
 
-        with NamedTemporaryFile('w', prefix='OTHER_') as f:
-            f.write(other.table(*keys, **kwargs))
-            f.flush()
-            with NamedTemporaryFile('w', prefix='SELF_') as f2:
-                f2.write(self.table(*keys, **kwargs))
-                f2.flush()
-                diff = subprocess.run('diff --show-function-line="^#" -U ' +
-                                      str(context) + ' ' + f.name + ' ' +
-                                      f2.name,
-                                      shell=True,
-                                      stdout=subprocess.PIPE).stdout
-        return diff.decode()
+        return diff(self.table(*keys, **kwargs),
+                    other.table(*keys, **kwargs),
+                    context=context)
 
     def copy(self):
         return copy.deepcopy(self)
@@ -408,13 +420,36 @@ class Results(UserDict):
 
     def dataframe(self, *keys, from_key=None):
         """ Return a DataFrame combining all data in Results beneath specified
-        item with multiindex specifying keys. """
+        node with multiindex specifying data leaf keys. """
 
-        ks, dfs = zip(*self.traverse_data(*keys, from_key=from_key))
-        return pd.concat(dfs, keys=(str((k, ))[1:-2] for k in ks))
+        return pd.concat({
+            str(k): d
+            for k, d in self.traverse_data(*keys, from_key=from_key)
+        })
+
+    def table(self, *keys, from_key=None, **kwargs):
+        """ Return table of tree data in traverse_leaves
+        order with data from a given leaf headed by #<keys specifying leaf>.
+        """
+
+        return table(self.traverse_data(*keys, from_key=from_key), **kwargs)
+
+    def diff(self, other, *keys, context=0, **kwargs):
+        """ Diff the table of this Results with another. context specifies
+        the number of lines of context printed about differences.
+        This is mainly meant to be used to determine the trickle-down effects
+        of changing filters 'upstream' by duplicating and modifying the tree
+        creation code. """
+
+        return diff(self.table(*keys, **kwargs),
+                    other.table(*keys, **kwargs),
+                    context=context)
 
     def __repr__(self):
         return pretty_nested_dict_keys(self.data)
+
+    def copy(self):
+        return copy.deepcopy(self)
 
 
 class Sieve:
@@ -475,3 +510,6 @@ class Sieve:
 
     def __repr__(self):
         return self.tree.__repr__() + '\n\n' + self.results.__repr__()
+
+    def copy(self):
+        return copy.deepcopy(self)
