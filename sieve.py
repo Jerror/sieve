@@ -499,7 +499,7 @@ class Sieve:
 
         if dry_run:
             return pd.concat({
-                ' '.join((*reskeys, pk[0])): self.tree.get_data(*pk[1:])
+                str((*reskeys, pk[0])): self.tree.get_data(*pk[1:])
                 for pk in pickkeys_list
             })
         else:
