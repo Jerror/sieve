@@ -511,7 +511,7 @@ class Sieve:
         else:
             self.tree.branch(filters, *keys, inplace=True)
 
-    def pick(self, pickkeys_list, *reskeys, dry_run=False):
+    def pick(self, pickkeys_list, *reskeys, dry_run=False, skip_missing=False):
         """ Pluck leaves from self.tree to Results object in self.results at
         (nested) key(s) *reskeys. Each item in pickkeys_list is a tuple of keys,
         where the first key names the entry in the Results object and the
@@ -524,15 +524,26 @@ class Sieve:
         pickkeys_list = (pk if is_iterable(pk[-1]) else (pk[-1], pk)
                          for pk in pickkeys_list)
 
+        key_leaf_list = []
+        for pk in pickkeys_list:
+            try:
+                leaf = self.tree.get_leaf(*pk[1])
+            except KeyError as e:
+                if skip_missing:
+                    continue
+                else:
+                    raise e
+            key_leaf_list += [(pk[0], leaf)]
+
         if dry_run:
             return pd.concat({
-                str((*reskeys, pk[0])): self.tree.get_data(*pk[1])
-                for pk in pickkeys_list
+                str((*reskeys, key)): leaf.data
+                for key, leaf in key_leaf_list
             })
         else:
             picker = self.results.picker(*reskeys)
-            for pk in pickkeys_list:
-                picker.pick_leaf(pk[0], self.tree.get_leaf(*pk[1]))
+            for key, leaf in key_leaf_list:
+                picker.pick_leaf(key, leaf)
 
     def __repr__(self):
         return self.tree.__repr__() + '\n\n' + self.results.__repr__()
