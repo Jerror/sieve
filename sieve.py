@@ -406,6 +406,15 @@ class Results(UserDict):
             res = res[k]
         return res[keys[-1]]
 
+    def apply(self, fun, *keys):
+        res = self.get(*keys[:-1]) if keys[:-1] else self
+        res[keys[-1]] = fun(res[keys[-1]])
+
+    def merge(self, *keys):
+        """ Replace Results object at *keys with its recursively concatenated
+        data. """
+        self.apply(lambda res: res.picker().merged(), *keys)
+
     def traverse_data(self, *keys, from_key=None):
         """ Return iterator over (keys, df) pairs in top-down order
         starting from from_key in Results at *keys. """
@@ -418,6 +427,10 @@ class Results(UserDict):
         return filter(
             lambda kv: isinstance(kv[1], pd.DataFrame) and not kv[1].empty,
             items)
+
+    def traverse_keys(self, *keys, **kwargs):
+        # Same as traverse_data but items only contain the keys
+        return (k for k, _ in self.traverse_data(*keys, **kwargs))
 
     def dataframe(self, *keys, from_key=None):
         """ Return a DataFrame combining all data in Results beneath specified
@@ -516,13 +529,6 @@ class Sieve:
             picker = self.results.picker(*reskeys)
             for pk in pickkeys_list:
                 picker.pick_leaf(pk[0], self.tree.get_leaf(*pk[1]))
-
-    def merge(self, *keys):
-        """ Replace Results object at *keys with its recursively concatenated
-        data. """
-
-        res = self.get_results(*keys[:-1]) if keys[:-1] else self.results
-        res[keys[-1]] = res[keys[-1]].picker().merged()
 
     def __repr__(self):
         return self.tree.__repr__() + '\n\n' + self.results.__repr__()
