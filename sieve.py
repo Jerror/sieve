@@ -407,12 +407,16 @@ class Results(UserDict):
         return res[keys[-1]]
 
     def apply(self, fun, *keys):
+        """ Replace value at *keys with the result of applying callback fun to
+        the value. """
+
         res = self.get(*keys[:-1]) if keys[:-1] else self
         res[keys[-1]] = fun(res[keys[-1]])
 
     def merge(self, *keys):
         """ Replace Results object at *keys with its recursively concatenated
         data. """
+
         self.apply(lambda res: res.picker().merged(), *keys)
 
     def traverse_data(self, *keys, from_key=None):
