@@ -2,6 +2,7 @@ import re
 import copy
 import itertools as it
 import subprocess
+from collections import Iterable
 from tempfile import NamedTemporaryFile
 from collections import UserDict
 from collections.abc import Mapping
@@ -451,6 +452,10 @@ class Results(UserDict):
         return copy.deepcopy(self)
 
 
+def is_iterable(arg):
+    return isinstance(arg, Iterable) and not isinstance(arg, str)
+
+
 class Sieve:
     """ Combines SieveTree, Results and Picker into one simple object intended
     for practical use. A SieveTree (self.tree) and a corresponding Results
@@ -497,6 +502,11 @@ class Sieve:
         return a DataFrame of data that would have been picked with index naming
         the intended location in results. """
 
+        # For items which are a flat iterable of keys (assumed to be leaf keys)
+        #  set results key to last leaf key
+        pickkeys_list = (pk if is_iterable(pk[-1]) else (pk[-1], pk)
+                         for pk in pickkeys_list)
+
         if dry_run:
             return pd.concat({
                 str((*reskeys, pk[0])): self.tree.get_data(*pk[1])
@@ -504,9 +514,8 @@ class Sieve:
             })
         else:
             picker = self.results.picker(*reskeys)
-            for pickkeys in pickkeys_list:
-                picker.pick_leaf(pickkeys[0],
-                                 self.tree.get_leaf(*pickkeys[1]))
+            for pk in pickkeys_list:
+                picker.pick_leaf(pk[0], self.tree.get_leaf(*pk[1]))
 
     def merge(self, *keys):
         """ Replace Results object at *keys with its recursively concatenated
