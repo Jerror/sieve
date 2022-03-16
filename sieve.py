@@ -62,19 +62,29 @@ def reduce_matching(df, matchcol, sumcols=None, match=None):
     return dat.sort_values(by='Count', ascending=False).reset_index(drop=True)
 
 
-def recurse_items(d, *parents, from_key=None):
+def recurse_mapping(d, *parents):
     """ Return depth-first iterator over mapping which traverses nested
     mappings as encountered. Items are (keys, value) pairs where keys
     is a tuple including the keys of parent mappings. """
 
-    items = d.items()
-    if from_key is not None:
-        items = it.dropwhile(lambda kv: kv[0] != from_key, items)
-    for k, m in items:
+    for k, m in d.items():
         if isinstance(m, Mapping):
-            yield from recurse_items(m, *parents, k)
+            yield from recurse_mapping(m, *parents, k)
         else:
             yield ((*parents, k), m)
+
+
+def select_items(items, from_key=None, to_key=None, key_filter=None):
+    """ Return iterator over (key, value) items from key from_key until key
+    to_key where function key_filter maps keys to True """
+
+    if from_key is not None:
+        items = it.dropwhile(lambda kv: kv[0] != from_key, items)
+    if to_key is not None:
+        items = it.takewhile(lambda kv: kv[0] != to_key, items)
+    if key_filter is not None:
+        items = filter(lambda kv: key_filter(kv[0]), items)
+    return items
 
 
 def table(objs, **kwargs):
@@ -260,18 +270,18 @@ class SieveTree(Mapping):
         if not inplace:
             return sieve
 
-    def traverse_leaves(self, *keys, from_key=None):
-        """ Return depth-first iterator over leaves from branch at *keys starting
-        at from_key which traverses branches as encountered and skips leaves
-        containing data which is not a non-empty DataFrame. Items are (keys,
-        leaf) pairs where keys is a tuple including all parent keys.
-        """
+    def traverse_leaves(self, *keys, **kwargs):
+        """ Return depth-first clockwise iterator over leaves from branch at
+        *keys filtered by select_items according to **kwargs and skipping
+        leaves containing data which is not a non-empty DataFrame. Items are
+        (keys, leaf) pairs where keys is a tuple including all parent keys. """
 
         node = self.get_node(*keys) if keys else self
         if isinstance(node, Leaf):
             items = [(keys, node)]
         else:
-            items = recurse_items(node, *keys, from_key=from_key)
+            items = (((*keys, *k), v)
+                     for k, v in select_items(recurse_mapping(node), **kwargs))
         return filter(
             lambda kv: isinstance(kv[1].data, pd.DataFrame) and not kv[1].data.
             empty, items)
@@ -304,21 +314,22 @@ class SieveTree(Mapping):
         # ASCII representation of SieveTree structure
         return self.get_tree().get_ascii(show_internal=True)
 
-    def dataframe(self, *keys, from_key=None):
+    def dataframe(self, *keys, **kwargs):
         """ Return a DataFrame combining all data in tree beneath specified
         node with multiindex specifying data leaf keys. """
 
-        return pd.concat({
-            str(k): d
-            for k, d in self.traverse_data(*keys, from_key=from_key)
-        })
+        return pd.concat(
+            {str(k): d
+             for k, d in self.traverse_data(*keys, **kwargs)})
 
-    def table(self, *keys, from_key=None, **kwargs):
+    def table(self, *keys, formatting=None, **kwargs):
         """ Return table of tree data in traverse_leaves
         order with data from a given leaf headed by #<keys specifying leaf>.
         """
 
-        return table(self.traverse_data(*keys, from_key=from_key), **kwargs)
+        if formatting is None:
+            formatting = {}
+        return table(self.traverse_data(*keys, **kwargs), **formatting)
 
     def diff(self, other, *keys, context=0, **kwargs):
         """ Diff the table of this SieveTree with another. context specifies
@@ -328,9 +339,9 @@ class SieveTree(Mapping):
         creation code. """
 
         return diff_tables(self.table(*keys, **kwargs),
-                    other.table(*keys, **kwargs),
-                    context=context,
-                    labels=['self', 'other'])
+                           other.table(*keys, **kwargs),
+                           context=context,
+                           labels=['self', 'other'])
 
     def copy(self):
         return copy.deepcopy(self)
@@ -368,7 +379,7 @@ class Picker:
         mappings. """
 
         if self.mapping:
-            _, frames = zip(*recurse_items(self.mapping))
+            _, frames = zip(*recurse_mapping(self.mapping))
             return pd.concat(frames, axis=0, copy=False)
         else:
             return pd.DataFrame()
@@ -425,7 +436,7 @@ class Results(UserDict):
 
         self.apply(lambda res: res.picker().merged(), *keys)
 
-    def traverse_data(self, *keys, from_key=None):
+    def traverse_data(self, *keys, **kwargs):
         """ Return iterator over (keys, df) pairs in top-down order
         starting from from_key in Results at *keys. """
 
@@ -433,7 +444,8 @@ class Results(UserDict):
         if not isinstance(val, Results):
             items = [(keys, val)]
         else:
-            items = recurse_items(val, *keys, from_key=from_key)
+            items = (((*keys, *k), v)
+                     for k, v in select_items(recurse_mapping(val), **kwargs))
         return filter(
             lambda kv: isinstance(kv[1], pd.DataFrame) and not kv[1].empty,
             items)
@@ -442,20 +454,21 @@ class Results(UserDict):
         # Same as traverse_data but items only contain the keys
         return (k for k, _ in self.traverse_data(*keys, **kwargs))
 
-    def dataframe(self, *keys, from_key=None):
+    def dataframe(self, *keys, **kwargs):
         """ Return a DataFrame combining all data in Results beneath specified
         node with multiindex specifying the data's sequence of keys. """
 
-        return pd.concat({
-            str(k): d
-            for k, d in self.traverse_data(*keys, from_key=from_key)
-        })
+        return pd.concat(
+            {str(k): d
+             for k, d in self.traverse_data(*keys, **kwargs)})
 
-    def table(self, *keys, from_key=None, **kwargs):
+    def table(self, *keys, formatting=None, **kwargs):
         """ Return table of data in traverse_data order with each block of data
         headed by #<keys locating data>. """
 
-        return table(self.traverse_data(*keys, from_key=from_key), **kwargs)
+        if formatting is None:
+            formatting = {}
+        return table(self.traverse_data(*keys, **kwargs), **formatting)
 
     def diff(self, other, *keys, context=0, **kwargs):
         """ Diff the table of this Results with another. context specifies
@@ -465,9 +478,9 @@ class Results(UserDict):
         creation code. """
 
         return diff_tables(self.table(*keys, **kwargs),
-                    other.table(*keys, **kwargs),
-                    context=context,
-                    labels=['self', 'other'])
+                           other.table(*keys, **kwargs),
+                           context=context,
+                           labels=['self', 'other'])
 
     def __repr__(self):
         return pretty_nested_dict_keys(self.data)
