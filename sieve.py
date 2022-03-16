@@ -95,7 +95,7 @@ def table(objs, **kwargs):
     return table
 
 
-def diff(table1, table2, context=0, labels=None):
+def diff_tables(table1, table2, context=0, labels=None):
     """ Return the unified difference of two tables. context specifies
     the number of lines of context printed about differences.
     The system diff utility is used instead of difflib because the latter
@@ -327,7 +327,7 @@ class SieveTree(Mapping):
         of changing filters 'upstream' by duplicating and modifying the tree
         creation code. """
 
-        return diff(self.table(*keys, **kwargs),
+        return diff_tables(self.table(*keys, **kwargs),
                     other.table(*keys, **kwargs),
                     context=context,
                     labels=['self', 'other'])
@@ -464,9 +464,10 @@ class Results(UserDict):
         of changing filters 'upstream' by duplicating and modifying the tree
         creation code. """
 
-        return diff(self.table(*keys, **kwargs),
+        return diff_tables(self.table(*keys, **kwargs),
                     other.table(*keys, **kwargs),
-                    context=context)
+                    context=context,
+                    labels=['self', 'other'])
 
     def __repr__(self):
         return pretty_nested_dict_keys(self.data)
