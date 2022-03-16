@@ -398,7 +398,7 @@ class Results(UserDict):
                 d = d[k]
         return Picker(' '.join((str(k) for k in keys)), d)
 
-    def get(self, *keys):
+    def starget(self, *keys):
         # Convenient nested access
         res = self
         for k in iter(keys[:-1]):
@@ -409,7 +409,7 @@ class Results(UserDict):
         """ Replace value at *keys with the result of applying callback fun to
         the value. """
 
-        res = self.get(*keys[:-1]) if keys[:-1] else self
+        res = self.starget(*keys[:-1]) if keys[:-1] else self
         res[keys[-1]] = fun(res[keys[-1]])
 
     def merge(self, *keys):
@@ -422,7 +422,7 @@ class Results(UserDict):
         """ Return iterator over (keys, df) pairs in top-down order
         starting from from_key in Results at *keys. """
 
-        val = self.get(*keys) if keys else self
+        val = self.starget(*keys) if keys else self
         if not isinstance(val, Results):
             items = [(keys, val)]
         else:
