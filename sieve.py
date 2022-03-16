@@ -105,10 +105,10 @@ def diff(table1, table2, context=0, labels=None):
     if labels is None:
         labels = ['TABLE 1', 'TABLE 2']
 
-    with NamedTemporaryFile('w', prefix='TABLE2_') as f:
+    with NamedTemporaryFile('w') as f:
         f.write(table2)
         f.flush()
-        with NamedTemporaryFile('w', prefix='TABLE1_') as f2:
+        with NamedTemporaryFile('w') as f2:
             f2.write(table1)
             f2.flush()
             diff = subprocess.run(
@@ -117,7 +117,8 @@ def diff(table1, table2, context=0, labels=None):
                 ' ' + f2.name,
                 shell=True,
                 stdout=subprocess.PIPE).stdout
-    return diff.decode()
+            lines = diff.decode().splitlines()
+    return '\n'.join(lines[:2] + [' ' + table1.splitlines()[0]] + lines[2:])
 
 
 @dataclass
