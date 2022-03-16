@@ -95,12 +95,15 @@ def table(objs, **kwargs):
     return table
 
 
-def diff(table1, table2, context=0):
+def diff(table1, table2, context=0, labels=None):
     """ Return the unified difference of two tables. context specifies
     the number of lines of context printed about differences.
     The system diff utility is used instead of difflib because the latter
     lacks the functionality of --show-function-line, which we use here
     to highlight under which '# <heading>' a diff occurred. """
+
+    if labels is None:
+        labels = ['TABLE 1', 'TABLE 2']
 
     with NamedTemporaryFile('w', prefix='TABLE2_') as f:
         f.write(table2)
@@ -108,10 +111,12 @@ def diff(table1, table2, context=0):
         with NamedTemporaryFile('w', prefix='TABLE1_') as f2:
             f2.write(table1)
             f2.flush()
-            diff = subprocess.run('diff --show-function-line="^#" -U ' +
-                                  str(context) + ' ' + f.name + ' ' + f2.name,
-                                  shell=True,
-                                  stdout=subprocess.PIPE).stdout
+            diff = subprocess.run(
+                'diff -b --show-function-line="^#" ' + f'-U {context} ' +
+                ' --label "{1}" --label "{0}" '.format(*labels) + f.name +
+                ' ' + f2.name,
+                shell=True,
+                stdout=subprocess.PIPE).stdout
     return diff.decode()
 
 
@@ -323,7 +328,8 @@ class SieveTree(Mapping):
 
         return diff(self.table(*keys, **kwargs),
                     other.table(*keys, **kwargs),
-                    context=context)
+                    context=context,
+                    labels=['self', 'other'])
 
     def copy(self):
         return copy.deepcopy(self)
