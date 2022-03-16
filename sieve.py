@@ -2,10 +2,9 @@ import re
 import copy
 import itertools as it
 import subprocess
-from collections import Iterable
 from tempfile import NamedTemporaryFile
 from collections import UserDict
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from typing import Callable, Union
 
