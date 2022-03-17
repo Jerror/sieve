@@ -87,6 +87,50 @@ def select_items(items, from_key=None, to_key=None, key_filter=None):
     return items
 
 
+class NestedMappingAccessors:
+
+    leaftypes = (object, )
+
+    def get_node(self, *keys):
+        # Convenient nested access
+        if keys:
+            node = self
+            for k in iter(keys[:-1]):
+                node = node[k]
+            return node[keys[-1]]
+        else:
+            return self
+
+    def get_map(self, *keys):
+        # Get subtree with nested accessing and type checking
+        node = self.get_node(*keys)
+        if not isinstance(node, type(self)):
+            raise LookupError("Expected " + str(type(self)) + ", got " +
+                              str(type(node)))
+        return node
+
+    def get_leaf(self, *keys):
+        # Get leaf with nested accessing and type checking
+        node = self.get_node(*keys)
+        if not isinstance(node, self.leaftypes):
+            raise LookupError("Expected " + str(self.leaftypes) + ", got " +
+                              str(type(node)))
+        return node
+
+    def traverse_leaves(self, *keys, **kwargs):
+        """ Return depth-first clockwise iterator over leaves from branch at
+        *keys filtered by select_items according to **kwargs. Items are
+        (keys, leaf) pairs where keys is a tuple including all parent keys. """
+
+        return (((*keys, *k), v)
+                for k, v in select_items(recurse_mapping(self.get_map(
+                    *keys)), **kwargs))
+
+    def traverse_keys(self, *keys, **kwargs):
+        # Same as traverse_leaves but items only contain the keys
+        return (k for k, _ in self.traverse_leaves(*keys, **kwargs))
+
+
 def table(objs, **kwargs):
     """ Return table of dataframes with data from each
     frame headed by #<keys specifying leaf>.
@@ -176,7 +220,7 @@ class Leaf:
     data: Union[pd.DataFrame, str]
 
 
-class SieveTree(Mapping, MethodsOnDataFrameMappings):
+class SieveTree(Mapping, NestedMappingAccessors, MethodsOnDataFrameMappings):
     """ A Mapping with methods for partitioning a DataFrame via sequences of
     filters and storing each partition mapped to a tuple of keys. Each filter
     divides a partition into a captured part and a remainder, each of which can
@@ -205,6 +249,8 @@ class SieveTree(Mapping, MethodsOnDataFrameMappings):
     string data means that the partition was moved to some mapping via Picker,
     and the string names the location of the partition in the mapping."""
 
+    leaftypes = (Leaf, )
+
     def __init__(self, state):
         self.mapping = {None: Leaf(state)}
 
@@ -218,33 +264,9 @@ class SieveTree(Mapping, MethodsOnDataFrameMappings):
         # Standard accessor with value typechecking.
         val = self.mapping[key]
         # Restricting vals to (Leaf, SieveTree) enforces desired tree structure
-        if not isinstance(val, (Leaf, SieveTree)):
+        if not isinstance(val, (*self.leaftypes, SieveTree)):
             raise LookupError("Invalid value type " + str(type(val)))
         return val
-
-    def get_node(self, *keys):
-        # Convenient nested access
-        if keys:
-            node = self
-            for k in iter(keys[:-1]):
-                node = node[k]
-            return node[keys[-1]]
-        else:
-            return self
-
-    def get_sieve(self, *keys):
-        # Get subtree with nested accessing and type checking
-        node = self.get_node(*keys)
-        if not isinstance(node, SieveTree):
-            raise LookupError("Expected SieveTree, got " + str(type(node)))
-        return node
-
-    def get_leaf(self, *keys):
-        # Get leaf with nested accessing and type checking
-        node = self.get_node(*keys)
-        if not isinstance(node, Leaf):
-            raise LookupError("Expected Leaf, got " + str(type(node)))
-        return node
 
     def get_data(self, *keys):
         # Get data from leaf with nested accessing and type checking
@@ -265,7 +287,7 @@ class SieveTree(Mapping, MethodsOnDataFrameMappings):
         boolean vector. """
 
         sieve = self if inplace else copy.deepcopy(self)
-        sub = sieve.get_sieve(*keys)
+        sub = sieve.get_map(*keys)
 
         state = sub.mapping.pop(None).data
         for k, f in (*filters, (None, None)):
@@ -301,7 +323,7 @@ class SieveTree(Mapping, MethodsOnDataFrameMappings):
         *keys and extend with filters. """
 
         sieve = self if inplace else copy.deepcopy(self)
-        sub = sieve.get_sieve(*keys[:-1])
+        sub = sieve.get_map(*keys[:-1])
 
         sub.mapping[keys[-1]] = SieveTree(sub.get_data(keys[-1])).extend(
             filters, inplace=False)
@@ -314,21 +336,14 @@ class SieveTree(Mapping, MethodsOnDataFrameMappings):
         leaves containing data which is not a non-empty DataFrame. Items are
         (keys, leaf) pairs where keys is a tuple including all parent keys. """
 
-        items = (
-            ((*keys, *k), v)
-            for k, v in select_items(recurse_mapping(self.get_sieve(
-                *keys)), **kwargs))
         return filter(
             lambda kv: isinstance(kv[1].data, pd.DataFrame) and not kv[1].data.
-            empty, items)
+            empty,
+            super(SieveTree, self).traverse_leaves(*keys, **kwargs))
 
     def traverse_data(self, *keys, **kwargs):
         # Same as traverse_leaves, but items contain leaf data instead of leaf
         return ((k, v.data) for k, v in self.traverse_leaves(*keys, **kwargs))
-
-    def traverse_keys(self, *keys, **kwargs):
-        # Same as traverse_leaves but items only contain the keys
-        return (k for k, _ in self.traverse_leaves(*keys, **kwargs))
 
     def get_tree(self, *parents):
         # Get ete3 Tree representation of SieveTree structure
@@ -399,15 +414,17 @@ def pretty_nested_dict_keys(d, indent=0):
     s = ''
     for key, value in d.items():
         s += '\t' * indent + str(key) + '\n'
-        if isinstance(value, Mapping):
+        if isinstance(value, type(d)):
             s += pretty_nested_dict_keys(value, indent + 1)
     return s
 
 
-class Results(UserDict, MethodsOnDataFrameMappings):
+class Results(UserDict, NestedMappingAccessors, MethodsOnDataFrameMappings):
     """ Dictionary for results collected from SieveTree leaves. Used to select,
     categorize and recombine leaf data. The picker method automatically creates
     nested Results as required and returns an appropriate Picker object. """
+
+    leaftypes = (pd.DataFrame, )
 
     def picker(self, *keys):
         """ Return a Picker whose mapping is the Results object at
@@ -423,35 +440,11 @@ class Results(UserDict, MethodsOnDataFrameMappings):
                 d = d[k]
         return Picker(' '.join((str(k) for k in keys)), d.data)
 
-    def get_node(self, *keys):
-        # Convenient nested access
-        if keys:
-            res = self
-            for k in iter(keys[:-1]):
-                res = res[k]
-            return res[keys[-1]]
-        else:
-            return self
-
-    def get_results(self, *keys):
-        # Get sub-results with nested accessing and type checking
-        node = self.get_node(*keys)
-        if not isinstance(node, Results):
-            raise LookupError("Expected Results, got " + str(type(node)))
-        return node
-
-    def get_data(self, *keys):
-        # Get data with nested accessing and type checking
-        node = self.get_node(*keys)
-        if not isinstance(node, pd.DataFrame):
-            raise LookupError("Expected DataFrame, got " + str(type(node)))
-        return node
-
     def apply(self, fun, *keys):
         """ Replace value at *keys with the result of applying callback fun to
         the value. """
 
-        res = self.get_results(*keys[:-1])
+        res = self.get_map(*keys[:-1])
         res[keys[-1]] = fun(res[keys[-1]])
 
     def merge(self, *keys):
@@ -464,20 +457,12 @@ class Results(UserDict, MethodsOnDataFrameMappings):
         """ Return iterator over (keys, df) pairs in top-down order
         starting from from_key in Results at *keys. """
 
-        items = (
-            ((*keys, *k), v)
-            for k, v in select_items(recurse_mapping(self.get_results(
-                *keys)), **kwargs))
         return filter(
             lambda kv: isinstance(kv[1], pd.DataFrame) and not kv[1].empty,
-            items)
-
-    def traverse_keys(self, *keys, **kwargs):
-        # Same as traverse_data but items only contain the keys
-        return (k for k, _ in self.traverse_data(*keys, **kwargs))
+            super(Results, self).traverse_leaves(*keys, **kwargs))
 
     def __repr__(self):
-        return pretty_nested_dict_keys(self.data)
+        return pretty_nested_dict_keys(self)
 
     def copy(self):
         return copy.deepcopy(self)
