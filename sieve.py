@@ -438,8 +438,7 @@ class Results(UserDict, NestedMappingAccessors, MethodsOnDataFrameMappings):
         return Picker(' '.join((str(k) for k in keys)), d)
 
     def assign(self, val, *keys):
-        """ Replace value at *keys with the result of applying callback fun to
-        the value. """
+        """ Assign to val at *keys assuming parent keys exist. """
 
         res = self.get_map(*keys[:-1])
         res[keys[-1]] = val
