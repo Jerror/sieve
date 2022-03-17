@@ -263,10 +263,6 @@ class SieveTree(Mapping, NestedMappingAccessors, MethodsOnDataFrameMappings):
             raise LookupError("Invalid value type " + str(type(val)))
         return val
 
-    def get_data(self, *keys):
-        # Get data from leaf with nested accessing and type checking
-        return self.get_leaf(*keys).data
-
     def extend(self, filters, *keys, inplace=False):
         """ Extend branch specified by *keys with nodes created
         from (iterable) filters. Filters act on the state which *doesn't*
@@ -325,20 +321,23 @@ class SieveTree(Mapping, NestedMappingAccessors, MethodsOnDataFrameMappings):
         if not inplace:
             return sieve
 
-    def traverse_leaves(self, *keys, **kwargs):
+    def get_data(self, *keys):
+        # Get data from leaf with nested accessing and type checking
+        data = self.get_leaf(*keys).data
+        if not isinstance(data, pd.DataFrame):
+            raise LookupError(
+                f'Expected DataFrame data, got string "{m.data}"')
+        return data
+
+    def traverse_data(self, *keys, **kwargs):
         """ Return depth-first clockwise iterator over leaves from branch at
         *keys filtered by select_items according to **kwargs and skipping
         leaves containing data which is not a non-empty DataFrame. Items are
         (keys, leaf) pairs where keys is a tuple including all parent keys. """
 
         return filter(
-            lambda kv: isinstance(kv[1].data, pd.DataFrame) and not kv[1].data.
-            empty,
-            super(SieveTree, self).traverse_leaves(*keys, **kwargs))
-
-    def traverse_data(self, *keys, **kwargs):
-        # Same as traverse_leaves, but items contain leaf data instead of leaf
-        return ((k, v.data) for k, v in self.traverse_leaves(*keys, **kwargs))
+            lambda kv: isinstance(kv[1], pd.DataFrame) and not kv[1].empty,
+            ((k, v.data) for k, v in self.traverse_leaves(*keys, **kwargs)))
 
     def get_tree(self, *parents):
         # Get ete3 Tree representation of SieveTree structure
@@ -373,27 +372,28 @@ class Picker:
         self.name = name
         self.mapping = d
 
-    def pick_leaf(self, k, m):
-        """ Put data from a leaf m into mapping at key k. If data exists at
-        key k, concatenates the data. Replaces leaf.data with string
-        self.name+k. """
+    def pick_leaf(self, k, m, skip_picked=True):
+        """ Put dataframe from a Leaf m into mapping at key k. If data exists
+        at key k, concatenates the data. Replaces m.data with string
+        self.name+k. If m.data is not a DataFrame, does nothing. """
 
         if not isinstance(m, Leaf):
             raise RuntimeError('Expected a Leaf')
-        if not isinstance(m.data, pd.DataFrame):
-            raise RuntimeError('Leaf already plucked: ' + str(m.data))
-
-        if k in self.mapping:
-            self.mapping[k] = pd.concat((self.mapping[k], m.data),
-                                        axis=0,
-                                        copy=False)
-        else:
-            self.mapping[k] = m.data
-        m.data = self.name + ' ' + str(k)
+        if isinstance(m.data, pd.DataFrame):
+            if k in self.mapping:
+                self.mapping[k] = pd.concat((self.mapping[k], m.data),
+                                            axis=0,
+                                            copy=False)
+            else:
+                self.mapping[k] = m.data
+            m.data = self.name + ' ' + str(k)
+        elif not skip_picked:
+            raise LookupError(
+                f'Expected DataFrame data, got string "{m.data}" for key {k}')
 
     def merged(self):
-        """ Concatenate all data in self.mapping, recursing on nested
-        mappings. """
+        """ Returns concatenation of all data in self.mapping, recursing on
+        nested mappings. """
 
         if self.mapping:
             _, frames = zip(*recurse_mapping(self.mapping))
@@ -402,7 +402,7 @@ class Picker:
             return pd.DataFrame()
 
 
-def pretty_nested_dict_keys(d, indent=0):
+def pretty_nested_mapping_keys(d, indent=0):
     """ Return a string listing all keys in a Mapping and any
     sub-Mappings, separated by line breaks with indentation level
     corresponding to sub-Mapping depth. """
@@ -410,7 +410,7 @@ def pretty_nested_dict_keys(d, indent=0):
     for key, value in d.items():
         s += '\t' * indent + str(key) + '\n'
         if isinstance(value, type(d)):
-            s += pretty_nested_dict_keys(value, indent + 1)
+            s += pretty_nested_mapping_keys(value, indent + 1)
     return s
 
 
@@ -446,16 +446,23 @@ class Results(UserDict, NestedMappingAccessors, MethodsOnDataFrameMappings):
 
         self.apply(lambda res: res.picker().merged(), *keys)
 
+    def get_data(self, *keys):
+        # Get data from leaf with nested accessing and type checking
+        data = self.get_leaf(*keys)
+        if not isinstance(data, pd.DataFrame):
+            raise LookupError('Expected DataFrame, got ' + str(type(data)))
+        return data
+
     def traverse_data(self, *keys, **kwargs):
         """ Return iterator over (keys, df) pairs in top-down order
         starting from from_key in Results at *keys. """
 
         return filter(
             lambda kv: isinstance(kv[1], pd.DataFrame) and not kv[1].empty,
-            super(Results, self).traverse_leaves(*keys, **kwargs))
+            self.traverse_leaves(*keys, **kwargs))
 
     def __repr__(self):
-        return pretty_nested_dict_keys(self)
+        return pretty_nested_mapping_keys(self)
 
     def copy(self):
         return copy.deepcopy(self)
@@ -503,7 +510,12 @@ class Sieve:
         else:
             self.tree.branch(filters, *keys, inplace=True)
 
-    def pick(self, pickkeys_list, *reskeys, dry_run=False, skip_missing=False):
+    def pick(self,
+             pickkeys_list,
+             *reskeys,
+             dry_run=False,
+             skip_missing=False,
+             skip_picked=True):
         """ Pluck leaves from self.tree to Results object in self.results at
         (nested) key(s) *reskeys. Each item in pickkeys_list is a tuple of keys,
         where the first key names the entry in the Results object and the
@@ -516,26 +528,27 @@ class Sieve:
         pickkeys_list = (pk if is_iterable(pk[-1]) else (pk[-1], pk)
                          for pk in pickkeys_list)
 
-        key_leaf_list = []
+        if dry_run:
+            res = Results()
+            tree = self.tree.copy()
+        else:
+            res = self.results
+            tree = self.tree
+
+        picker = res.picker(*reskeys)
         for pk in pickkeys_list:
             try:
-                leaf = self.tree.get_leaf(*pk[1])
+                picker.pick_leaf(pk[0],
+                                 tree.get_leaf(*pk[1]),
+                                 skip_picked=skip_picked)
             except KeyError as e:
                 if skip_missing:
                     continue
                 else:
                     raise e
-            key_leaf_list += [(pk[0], leaf)]
 
         if dry_run:
-            return pd.concat({
-                str((*reskeys, key)): leaf.data
-                for key, leaf in key_leaf_list
-            })
-        else:
-            picker = self.results.picker(*reskeys)
-            for key, leaf in key_leaf_list:
-                picker.pick_leaf(key, leaf)
+            return res.dataframe()
 
     def __repr__(self):
         return self.tree.__repr__() + '\n\n' + self.results.__repr__()
