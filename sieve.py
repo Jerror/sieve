@@ -131,6 +131,41 @@ def diff_tables(table1, table2, context=0, labels=None):
     return '\n'.join(lines[:2] + [' ' + table1.splitlines()[0]] + lines[2:])
 
 
+class MethodsOnDataFrameMappings():
+
+    def traverse_data(self, *keys, **kwargs):
+        raise NotImplementedError('')
+
+    def dataframe(self, *keys, **kwargs):
+        """ Return a DataFrame combining all data in tree beneath specified
+        node with multiindex specifying data leaf keys. """
+
+        return pd.concat(
+            {str(k): d
+             for k, d in self.traverse_data(*keys, **kwargs)})
+
+    def table(self, *keys, formatting=None, **kwargs):
+        """ Return table of tree data in traverse_leaves
+        order with data from a given leaf headed by #<keys specifying leaf>.
+        """
+
+        if formatting is None:
+            formatting = {}
+        return table(self.traverse_data(*keys, **kwargs), **formatting)
+
+    def diff(self, other, *keys, context=0, **kwargs):
+        """ Diff the table of this SieveTree with another. context specifies
+        the number of lines of context printed about differences.
+        This is mainly meant to be used to determine the trickle-down effects
+        of changing filters 'upstream' by duplicating and modifying the tree
+        creation code. """
+
+        return diff_tables(self.table(*keys, **kwargs),
+                           other.table(*keys, **kwargs),
+                           context=context,
+                           labels=['self', 'other'])
+
+
 @dataclass
 class Leaf:
     """ Dataclass for leaves of SieveTree. Contains either a DataFrame which
@@ -141,7 +176,7 @@ class Leaf:
     data: Union[pd.DataFrame, str]
 
 
-class SieveTree(Mapping):
+class SieveTree(Mapping, MethodsOnDataFrameMappings):
     """ A Mapping with methods for partitioning a DataFrame via sequences of
     filters and storing each partition mapped to a tuple of keys. Each filter
     divides a partition into a captured part and a remainder, each of which can
@@ -279,8 +314,10 @@ class SieveTree(Mapping):
         leaves containing data which is not a non-empty DataFrame. Items are
         (keys, leaf) pairs where keys is a tuple including all parent keys. """
 
-        items = (((*keys, *k), v)
-                 for k, v in select_items(recurse_mapping(self.get_sieve(*keys)), **kwargs))
+        items = (
+            ((*keys, *k), v)
+            for k, v in select_items(recurse_mapping(self.get_sieve(
+                *keys)), **kwargs))
         return filter(
             lambda kv: isinstance(kv[1].data, pd.DataFrame) and not kv[1].data.
             empty, items)
@@ -312,35 +349,6 @@ class SieveTree(Mapping):
     def __repr__(self):
         # ASCII representation of SieveTree structure
         return self.get_tree().get_ascii(show_internal=True)
-
-    def dataframe(self, *keys, **kwargs):
-        """ Return a DataFrame combining all data in tree beneath specified
-        node with multiindex specifying data leaf keys. """
-
-        return pd.concat(
-            {str(k): d
-             for k, d in self.traverse_data(*keys, **kwargs)})
-
-    def table(self, *keys, formatting=None, **kwargs):
-        """ Return table of tree data in traverse_leaves
-        order with data from a given leaf headed by #<keys specifying leaf>.
-        """
-
-        if formatting is None:
-            formatting = {}
-        return table(self.traverse_data(*keys, **kwargs), **formatting)
-
-    def diff(self, other, *keys, context=0, **kwargs):
-        """ Diff the table of this SieveTree with another. context specifies
-        the number of lines of context printed about differences.
-        This is mainly meant to be used to determine the trickle-down effects
-        of changing filters 'upstream' by duplicating and modifying the tree
-        creation code. """
-
-        return diff_tables(self.table(*keys, **kwargs),
-                           other.table(*keys, **kwargs),
-                           context=context,
-                           labels=['self', 'other'])
 
     def copy(self):
         return copy.deepcopy(self)
@@ -396,7 +404,7 @@ def pretty_nested_dict_keys(d, indent=0):
     return s
 
 
-class Results(UserDict):
+class Results(UserDict, MethodsOnDataFrameMappings):
     """ Dictionary for results collected from SieveTree leaves. Used to select,
     categorize and recombine leaf data. The picker method automatically creates
     nested Results as required and returns an appropriate Picker object. """
@@ -406,14 +414,14 @@ class Results(UserDict):
         self.data[keys[0]][keys[1]]... with name given by concatenation
         of keys. Nested Results objects are created as necessary. """
 
-        d = self.data
+        d = self
         for k in iter(keys):
             try:
                 d = d[k]
             except KeyError:
                 d[k] = Results()
                 d = d[k]
-        return Picker(' '.join((str(k) for k in keys)), d)
+        return Picker(' '.join((str(k) for k in keys)), d.data)
 
     def get_node(self, *keys):
         # Convenient nested access
@@ -456,8 +464,10 @@ class Results(UserDict):
         """ Return iterator over (keys, df) pairs in top-down order
         starting from from_key in Results at *keys. """
 
-        items = (((*keys, *k), v)
-                 for k, v in select_items(recurse_mapping(self.get_results(*keys)), **kwargs))
+        items = (
+            ((*keys, *k), v)
+            for k, v in select_items(recurse_mapping(self.get_results(
+                *keys)), **kwargs))
         return filter(
             lambda kv: isinstance(kv[1], pd.DataFrame) and not kv[1].empty,
             items)
@@ -465,34 +475,6 @@ class Results(UserDict):
     def traverse_keys(self, *keys, **kwargs):
         # Same as traverse_data but items only contain the keys
         return (k for k, _ in self.traverse_data(*keys, **kwargs))
-
-    def dataframe(self, *keys, **kwargs):
-        """ Return a DataFrame combining all data in Results beneath specified
-        node with multiindex specifying the data's sequence of keys. """
-
-        return pd.concat(
-            {str(k): d
-             for k, d in self.traverse_data(*keys, **kwargs)})
-
-    def table(self, *keys, formatting=None, **kwargs):
-        """ Return table of data in traverse_data order with each block of data
-        headed by #<keys locating data>. """
-
-        if formatting is None:
-            formatting = {}
-        return table(self.traverse_data(*keys, **kwargs), **formatting)
-
-    def diff(self, other, *keys, context=0, **kwargs):
-        """ Diff the table of this Results with another. context specifies
-        the number of lines of context printed about differences.
-        This is mainly meant to be used to determine the trickle-down effects
-        of changing filters 'upstream' by duplicating and modifying the tree
-        creation code. """
-
-        return diff_tables(self.table(*keys, **kwargs),
-                           other.table(*keys, **kwargs),
-                           context=context,
-                           labels=['self', 'other'])
 
     def __repr__(self):
         return pretty_nested_dict_keys(self.data)
