@@ -427,11 +427,11 @@ class Results(UserDict, NestedMappingAccessors, MethodsOnDataFrameMappings):
         d = self
         for k in iter(keys):
             try:
-                d = d[k]
+                d = d.get_map(k)
             except KeyError:
                 d[k] = Results()
                 d = d[k]
-        return Picker(' '.join((str(k) for k in keys)), d.data)
+        return Picker(' '.join((str(k) for k in keys)), d)
 
     def apply(self, fun, *keys):
         """ Replace value at *keys with the result of applying callback fun to
