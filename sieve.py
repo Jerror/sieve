@@ -437,18 +437,18 @@ class Results(UserDict, NestedMappingAccessors, MethodsOnDataFrameMappings):
                 d = d[k]
         return Picker(' '.join((str(k) for k in keys)), d)
 
-    def apply(self, fun, *keys):
+    def assign(self, val, *keys):
         """ Replace value at *keys with the result of applying callback fun to
         the value. """
 
         res = self.get_map(*keys[:-1])
-        res[keys[-1]] = fun(res[keys[-1]])
+        res[keys[-1]] = val
 
     def merge(self, *keys):
         """ Replace Results object at *keys with its recursively concatenated
         data. """
 
-        self.apply(lambda res: res.picker().merged(), *keys)
+        self.assign(self.get_map(*keys).picker().merged(), *keys)
 
     def get_data(self, *keys):
         # Get data from leaf with nested accessing and type checking
