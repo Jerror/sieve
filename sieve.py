@@ -189,10 +189,13 @@ class SieveTree(Mapping):
 
     def get_node(self, *keys):
         # Convenient nested access
-        node = self
-        for k in iter(keys[:-1]):
-            node = node[k]
-        return node[keys[-1]]
+        if keys:
+            node = self
+            for k in iter(keys[:-1]):
+                node = node[k]
+            return node[keys[-1]]
+        else:
+            return self
 
     def get_sieve(self, *keys):
         # Get subtree with nested accessing and type checking
@@ -227,7 +230,7 @@ class SieveTree(Mapping):
         boolean vector. """
 
         sieve = self if inplace else copy.deepcopy(self)
-        sub = sieve.get_sieve(*keys) if keys else sieve
+        sub = sieve.get_sieve(*keys)
 
         state = sub.mapping.pop(None).data
         for k, f in (*filters, (None, None)):
@@ -263,7 +266,7 @@ class SieveTree(Mapping):
         *keys and extend with filters. """
 
         sieve = self if inplace else copy.deepcopy(self)
-        sub = sieve.get_sieve(*keys[:-1]) if keys[:-1] else sieve
+        sub = sieve.get_sieve(*keys[:-1])
 
         sub.mapping[keys[-1]] = SieveTree(sub.get_data(keys[-1])).extend(
             filters, inplace=False)
@@ -276,12 +279,8 @@ class SieveTree(Mapping):
         leaves containing data which is not a non-empty DataFrame. Items are
         (keys, leaf) pairs where keys is a tuple including all parent keys. """
 
-        node = self.get_node(*keys) if keys else self
-        if isinstance(node, Leaf):
-            items = [(keys, node)]
-        else:
-            items = (((*keys, *k), v)
-                     for k, v in select_items(recurse_mapping(node), **kwargs))
+        items = (((*keys, *k), v)
+                 for k, v in select_items(recurse_mapping(self.get_sieve(*keys)), **kwargs))
         return filter(
             lambda kv: isinstance(kv[1].data, pd.DataFrame) and not kv[1].data.
             empty, items)
@@ -416,18 +415,35 @@ class Results(UserDict):
                 d = d[k]
         return Picker(' '.join((str(k) for k in keys)), d)
 
-    def starget(self, *keys):
+    def get_node(self, *keys):
         # Convenient nested access
-        res = self
-        for k in iter(keys[:-1]):
-            res = res[k]
-        return res[keys[-1]]
+        if keys:
+            res = self
+            for k in iter(keys[:-1]):
+                res = res[k]
+            return res[keys[-1]]
+        else:
+            return self
+
+    def get_results(self, *keys):
+        # Get sub-results with nested accessing and type checking
+        node = self.get_node(*keys)
+        if not isinstance(node, Results):
+            raise LookupError("Expected Results, got " + str(type(node)))
+        return node
+
+    def get_data(self, *keys):
+        # Get data with nested accessing and type checking
+        node = self.get_node(*keys)
+        if not isinstance(node, pd.DataFrame):
+            raise LookupError("Expected DataFrame, got " + str(type(node)))
+        return node
 
     def apply(self, fun, *keys):
         """ Replace value at *keys with the result of applying callback fun to
         the value. """
 
-        res = self.starget(*keys[:-1]) if keys[:-1] else self
+        res = self.get_results(*keys[:-1])
         res[keys[-1]] = fun(res[keys[-1]])
 
     def merge(self, *keys):
@@ -440,12 +456,8 @@ class Results(UserDict):
         """ Return iterator over (keys, df) pairs in top-down order
         starting from from_key in Results at *keys. """
 
-        val = self.starget(*keys) if keys else self
-        if not isinstance(val, Results):
-            items = [(keys, val)]
-        else:
-            items = (((*keys, *k), v)
-                     for k, v in select_items(recurse_mapping(val), **kwargs))
+        items = (((*keys, *k), v)
+                 for k, v in select_items(recurse_mapping(self.get_results(*keys)), **kwargs))
         return filter(
             lambda kv: isinstance(kv[1], pd.DataFrame) and not kv[1].empty,
             items)
