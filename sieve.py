@@ -89,8 +89,6 @@ def select_items(items, from_key=None, to_key=None, key_filter=None):
 
 class NestedMappingAccessors:
 
-    leaftypes = (object, )
-
     def get_node(self, *keys):
         # Convenient nested access
         if keys:
@@ -112,9 +110,8 @@ class NestedMappingAccessors:
     def get_leaf(self, *keys):
         # Get leaf with nested accessing and type checking
         node = self.get_node(*keys)
-        if not isinstance(node, self.leaftypes):
-            raise LookupError("Expected " + str(self.leaftypes) + ", got " +
-                              str(type(node)))
+        if isinstance(node, type(self)):
+            raise LookupError("Expected leaf, got a map")
         return node
 
     def traverse_leaves(self, *keys, **kwargs):
@@ -249,8 +246,6 @@ class SieveTree(Mapping, NestedMappingAccessors, MethodsOnDataFrameMappings):
     string data means that the partition was moved to some mapping via Picker,
     and the string names the location of the partition in the mapping."""
 
-    leaftypes = (Leaf, )
-
     def __init__(self, state):
         self.mapping = {None: Leaf(state)}
 
@@ -264,7 +259,7 @@ class SieveTree(Mapping, NestedMappingAccessors, MethodsOnDataFrameMappings):
         # Standard accessor with value typechecking.
         val = self.mapping[key]
         # Restricting vals to (Leaf, SieveTree) enforces desired tree structure
-        if not isinstance(val, (*self.leaftypes, SieveTree)):
+        if not isinstance(val, (Leaf, SieveTree)):
             raise LookupError("Invalid value type " + str(type(val)))
         return val
 
@@ -423,8 +418,6 @@ class Results(UserDict, NestedMappingAccessors, MethodsOnDataFrameMappings):
     """ Dictionary for results collected from SieveTree leaves. Used to select,
     categorize and recombine leaf data. The picker method automatically creates
     nested Results as required and returns an appropriate Picker object. """
-
-    leaftypes = (pd.DataFrame, )
 
     def picker(self, *keys):
         """ Return a Picker whose mapping is the Results object at
