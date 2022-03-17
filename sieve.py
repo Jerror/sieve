@@ -177,6 +177,10 @@ class MethodsOnDataFrameMappings():
     def traverse_data(self, *keys, **kwargs):
         raise NotImplementedError('')
 
+    def traverse_data_keys(self, *keys, **kwargs):
+        # Same as traverse_leaves but items only contain the keys
+        return (k for k, _ in self.traverse_data(*keys, **kwargs))
+
     def dataframe(self, *keys, **kwargs):
         """ Return a DataFrame combining all data in tree beneath specified
         node with multiindex specifying data leaf keys. """
