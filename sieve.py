@@ -96,8 +96,7 @@ class NestedMappingAccessors:
             for k in iter(keys[:-1]):
                 node = node[k]
             return node[keys[-1]]
-        else:
-            return self
+        return self
 
     def get_map(self, *keys):
         # Get subtree with nested accessing and type checking
@@ -329,8 +328,7 @@ class SieveTree(Mapping, NestedMappingAccessors, MethodsOnDataFrameMappings):
         # Get data from leaf with nested accessing and type checking
         data = self.get_leaf(*keys).data
         if not isinstance(data, pd.DataFrame):
-            raise LookupError(
-                f'Expected DataFrame data, got string "{m.data}"')
+            raise LookupError(f'Expected DataFrame data, got string "{data}"')
         return data
 
     def traverse_data(self, *keys, **kwargs):
@@ -402,8 +400,7 @@ class Picker:
         if self.mapping:
             _, frames = zip(*recurse_mapping(self.mapping))
             return pd.concat(frames, axis=0, copy=False)
-        else:
-            return pd.DataFrame()
+        return pd.DataFrame()
 
 
 def pretty_nested_mapping_keys(d, indent=0):
@@ -499,8 +496,7 @@ class Sieve:
             filters = list(filters)
             tree = self.tree.extend(filters, *keys, inplace=False)
             return tree.dataframe(*keys, from_key=filters[0][0])
-        else:
-            self.tree.extend(filters, *keys, inplace=True)
+        self.tree.extend(filters, *keys, inplace=True)
 
     def branch(self, filters, *keys, dry_run=False):
         """ Branch self.tree (see SieveTree.branch) in-place if dry_run is
@@ -510,8 +506,7 @@ class Sieve:
         if dry_run:
             tree = self.tree.branch(filters, *keys, inplace=False)
             return tree.dataframe(*keys)
-        else:
-            self.tree.branch(filters, *keys, inplace=True)
+        self.tree.branch(filters, *keys, inplace=True)
 
     def pick(self,
              pickkeys_list,
@@ -547,8 +542,7 @@ class Sieve:
             except KeyError as e:
                 if skip_missing:
                     continue
-                else:
-                    raise e
+                raise e
 
         if dry_run:
             return res.dataframe()
