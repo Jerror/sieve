@@ -332,13 +332,16 @@ class SieveTree(Mapping, NestedMappingAccessorsMixin,
 
     def branch(self, filters, *keys, inplace=False):
         """ Create a new branch on the state captured at leaf specified by
-        *keys and extend with filters. """
+        *keys and extend with filters, and replace leaf by this new branch if
+        it is nontrivial. """
 
         sieve = self if inplace else copy.deepcopy(self)
         sub = sieve.get_node(*keys[:-1])
 
-        sub.mapping[keys[-1]] = SieveTree(sub.get_df(keys[-1])).extend(
-            filters, inplace=False)
+        new_branch = SieveTree(sub.get_df(keys[-1])).extend(filters,
+                                                            inplace=False)
+        if list(new_branch.keys()) != [None]:
+            sub.mapping[keys[-1]] = new_branch
         if not inplace:
             return sieve
 
