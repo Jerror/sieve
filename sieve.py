@@ -99,7 +99,7 @@ class NestedMappingAccessors:
         return self
 
     def get_map(self, *keys):
-        # Get subtree with nested accessing and type checking
+        # Get sub-mapping with nested accessing and type checking
         node = self.get_node(*keys)
         if not isinstance(node, type(self)):
             raise LookupError("Expected " + str(type(self)) + ", got " +
@@ -127,9 +127,9 @@ class NestedMappingAccessors:
         return (k for k, _ in self.traverse_leaves(*keys, **kwargs))
 
 
-def table(objs, **kwargs):
-    """ Return table of dataframes with data from each
-    frame headed by #<keys specifying leaf>.
+def dataframes2table(objs, **kwargs):
+    """ objs: sequence of (key, dataframe) tuples
+    Return table of dataframes wlistith data from each frame headed by #<key>.
     """
 
     combined_df = pd.concat({'# ' + str(k) + '\xFE': df for k, df in objs})
@@ -195,7 +195,8 @@ class MethodsOnDataFrameMappings():
 
         if formatting is None:
             formatting = {}
-        return table(self.traverse_data(*keys, **kwargs), **formatting)
+        return dataframes2table(self.traverse_data(*keys, **kwargs),
+                                **formatting)
 
     def diff(self, other, *keys, context=0, **kwargs):
         """ Diff the table of this SieveTree with another. context specifies
