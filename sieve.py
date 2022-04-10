@@ -359,14 +359,14 @@ class SieveTree(Mapping, NestedMappingAccessorsMixin,
                       ((k, v.data)
                        for k, v in self.leaf_items(*keys, **kwargs)))
 
-    def get_tree(self, *parents):
+    def to_tree(self, *parents):
         # Get ete3 Tree representation of SieveTree structure
         root = Tree()
         n = root
         for k, v in self.items():
             n = n.add_child(name=k)
             if isinstance(v, SieveTree):
-                n.add_child(v.get_tree(*parents, k))
+                n.add_child(v.to_tree(*parents, k))
             elif isinstance(v.data, pd.DataFrame):
                 label = str((*parents, k)) if not v.data.empty else '()'
                 n.add_child(name=label)
@@ -377,7 +377,7 @@ class SieveTree(Mapping, NestedMappingAccessorsMixin,
 
     def __repr__(self):
         # ASCII representation of SieveTree structure
-        return self.get_tree().get_ascii(show_internal=True)
+        return self.to_tree().get_ascii(show_internal=True)
 
     def copy(self):
         return copy.deepcopy(self)
