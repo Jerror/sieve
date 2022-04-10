@@ -87,7 +87,7 @@ def select_items(items, from_key=None, to_key=None, key_filter=None):
     return items
 
 
-class NestedMappingAccessors:
+class NestedMappingAccessorsMixin:
 
     def get_node(self, *keys):
         # Convenient nested access
@@ -171,7 +171,7 @@ def diff_tables(table1, table2, context=0, labels=None):
     return '\n'.join(lines[:2] + [' ' + table1.splitlines()[0]] + lines[2:])
 
 
-class MethodsOnDataFrameMappings():
+class DataFrameMappingMethodsMixin():
 
     def traverse_data(self, *keys, **kwargs):
         raise NotImplementedError('')
@@ -221,7 +221,8 @@ class Leaf:
     data: Union[pd.DataFrame, str]
 
 
-class SieveTree(Mapping, NestedMappingAccessors, MethodsOnDataFrameMappings):
+class SieveTree(Mapping, NestedMappingAccessorsMixin,
+                DataFrameMappingMethodsMixin):
     """ A Mapping with methods for partitioning a DataFrame via sequences of
     filters and storing each partition mapped to a tuple of keys. Each filter
     divides a partition into a captured part and a remainder, each of which can
@@ -416,7 +417,8 @@ def pretty_nested_mapping_keys(d, indent=0):
     return s
 
 
-class Results(UserDict, NestedMappingAccessors, MethodsOnDataFrameMappings):
+class Results(UserDict, NestedMappingAccessorsMixin,
+              DataFrameMappingMethodsMixin):
     """ Dictionary for results collected from SieveTree leaves. Used to select,
     categorize and recombine leaf data. The picker method automatically creates
     nested Results as required and returns an appropriate Picker object. """
