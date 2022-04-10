@@ -15,6 +15,8 @@ from ete3 import Tree
 # These types may contain valid "boolean vectors" for Pandas Series indexing
 pandas_vec_types = (list, ndarray, pd.core.arrays.ExtensionArray, pd.Series,
                     pd.Index)
+# Character prefixing key lines in dataframes2table output
+table_key_prefix = '#'
 
 
 def fun_contains_str(col, patt, **kwargs):
@@ -131,15 +133,20 @@ class NestedMappingAccessorsMixin:
         return (k for k, _ in self.leaf_items(*keys, **kwargs))
 
 
-def dataframes2table(objs, **kwargs):
+def dataframes2table(objs,
+                     key_prefix=table_key_prefix,
+                     dummy='\xFE',
+                     **kwargs):
     """ objs: sequence of (key, dataframe) tuples
     Return table of dataframes wlistith data from each frame headed by #<key>.
     """
 
-    combined_df = pd.concat({'# ' + str(k) + '\xFE': df for k, df in objs})
+    combined_df = pd.concat(
+        {key_prefix + ' ' + str(k) + dummy: df
+         for k, df in objs})
     table = combined_df.to_string(**kwargs)
     # Put keys on their own line
-    table = table.replace('\xFE', '\n')
+    table = table.replace(dummy, '\n')
     table_width = len(table.splitlines()[-1])
     # Remove leading whitespace from rows
     table = re.sub('\n\\s+', '\n', table)
@@ -149,7 +156,11 @@ def dataframes2table(objs, **kwargs):
     return table
 
 
-def diff_tables(table1, table2, context=0, labels=None):
+def diff_tables(table1,
+                table2,
+                context=0,
+                labels=None,
+                key_prefix=table_key_prefix):
     """ Return the unified difference of two tables. context specifies
     the number of lines of context printed about differences.
     The system diff utility is used instead of difflib because the latter
@@ -166,7 +177,8 @@ def diff_tables(table1, table2, context=0, labels=None):
             f2.write(table1)
             f2.flush()
             diff = subprocess.run(
-                'diff -b --show-function-line="^#" ' + f'-U {context} ' +
+                f'diff -b --show-function-line="^{key_prefix}" ' +
+                f'-U {context} ' +
                 ' --label "{1}" --label "{0}" '.format(*labels) + f.name +
                 ' ' + f2.name,
                 shell=True,
@@ -183,29 +195,28 @@ class DataFrameMappingMethodsMixin():
         raise NotImplementedError('')
 
     def df_keys(self, *keys, **kwargs):
-        # Same as leaf_items but items only contain the keys
+        # Same as df_items but only the keys
         return (k for k, _ in self.df_items(*keys, **kwargs))
 
     def to_dataframe(self, *keys, **kwargs):
-        """ Return a DataFrame combining all data in tree beneath specified
-        node with multiindex specifying data leaf keys. """
+        """ Return a DataFrame combining all specified dfs with multiindex
+        specifying df keys. """
 
         return pd.concat(
             {str(k): d
              for k, d in self.df_items(*keys, **kwargs)})
 
     def to_table(self, *keys, formatting=None, **kwargs):
-        """ Return table of tree data in leaf_items
-        order with data from a given leaf headed by #<keys specifying leaf>.
-        """
+        """ Return table of tree data in leaf_items order with data from a
+        given leaf headed by #<keys specifying leaf>. """
 
         if formatting is None:
             formatting = {}
         return dataframes2table(self.df_items(*keys, **kwargs), **formatting)
 
     def diff(self, other, *keys, context=0, **kwargs):
-        """ Diff the table of this SieveTree with another. context specifies
-        the number of lines of context printed about differences.
+        """ Diff the table of this object with that of another. context
+        specifies the number of lines of context printed about differences.
         This is mainly meant to be used to determine the trickle-down effects
         of changing filters 'upstream' by duplicating and modifying the tree
         creation code. """
